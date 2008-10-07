@@ -77,9 +77,7 @@
 
 (eval-when-compile
   (require 'cl)
-  (require 'geben-gud-dbgp)
-  (require 'geben-dbgp)
-  (require 'geben-mode))
+  (require 'gud))
 
 (defcustom geben-session-starting-hook nil
   "*Hook running at when the geben debugging session is starting."
@@ -1117,6 +1115,7 @@ If the optional argument COMMAND-LINE is nil, the value of
     (gud-common-init geben-dbgp-command-line nil
 		     'geben-dbgp-marker-filter 'geben-dbgp-find-file)
     (with-current-buffer gud-comint-buffer
+      (set-process-query-on-exit-flag (get-buffer-process (current-buffer)) nil)
       (add-hook 'kill-buffer-hook 'geben-dbgp-reset nil t))
 
     (set (make-local-variable 'gud-minor-mode) 'xdebug)
