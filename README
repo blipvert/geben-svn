@@ -1,5 +1,5 @@
-GEBEN-0.17
-----------
+GEBEN-0.18 (Beta)
+-----------------
 
 GEBEN is a software package that interfaces Emacs to DBGp protocol
 with which you can debug running scripts interactive. At this present
@@ -16,10 +16,8 @@ Currently GEBEN implements the following features.
  * set/unset/listing breakpoints
  * expression evaluation
  * STDOUT/STDERR redirection
- * backtrace listing 
-
-GEBEN is alpha stage in this release. Only a few features are covered.
-(Still it might be useful with help of Emacs' other features ;-)
+ * backtrace listing
+ * variable inspection
 
 
 REQUIREMENTS
@@ -32,12 +30,14 @@ REQUIREMENTS
    debugging enabled with DBGp protocol
 
 [client side]
- - Emacs21.4 or later
+ - Emacs22.1 or later
  - xdebugclient
 
 
 BIG CHANGES
 -----------
+
+- At version 0.18 GEBEN dropped Emacs 21.4.
 
 - Since version 0.1 GEBEN does not depend on CEDET emacs library.
   If you have installed CEDET previously only for GEBEN-pre-alpha,
@@ -100,13 +100,14 @@ Here is an illustration on PHP debugging.
      i       step into
      o       step over
      r       step out
+     g       run
      b       set a breakpoint at a line
      B       set a breakpoint interactively
      u       unset a breakpoint at a line
      \C-b    display breakpoint list
-     g       run
      t       set redirection mode
      \C-u t  change redirection mode
+     v       display context variables
      w       where
      q       stop
 
