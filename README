@@ -59,7 +59,7 @@ INSTALLATION
   PHP:    http://php.net
   Xdebug: http://xdebug.org
 
-- To debug Perl, Python, Ruby, Tcl and JavaScript with GEBEN, Komodo
+- To debug Perl, Python, Ruby and Tcl with GEBEN, Komodo
   Debugging Extensions will give you a big help.
   Distribution: http://aspn.activestate.com/ASPN/Downloads/Komodo/RemoteDebugging
   Documentation: http://aspn.activestate.com/ASPN/Reference/Products/Komodo/komodo-doc-debugger.html
@@ -71,11 +71,14 @@ INSTALLATION
    executables. (e.g. /usr/local/bin/)
 1' Or build manually from source code. Sources are included in
    Xdebug source code package.
-2. Unpack GEBEN source code package and copy geben.el into
-   somewhere Emacs' variable `load-path' points.
-   (e.g. /usr/share/Emacs/site-lisp/)
-3. Insert autoload hooks into your .Emacs file.
+2. Unpack GEBEN source code package and change directory to the
+   unpacked directory.
+3. Run: make
+4. If you are an administrator, Run: sudo make install
+4' Or Run: SITELISP=$HOME/path/to/install make install
+5. Insert autoload hooks into your .Emacs file.
     -> (autoload 'geben "geben" "PHP Debugger on Emacs" t)
+6. Restart Emacs.
 
 
 DEBUGGING

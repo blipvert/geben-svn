@@ -1,39 +1,16 @@
-;;; geben.el --- PHP source code level debugger
+;;; geben.el --- DBGp protocol frontend, a script debugger
+;; $Id$
 ;; 
 ;; Filename: geben.el
 ;; Author: reedom <fujinaka.tohru@gmail.com>
 ;; Maintainer: reedom <fujinaka.tohru@gmail.com>
 ;; Version: 0.18
 ;; URL: http://code.google.com/p/geben-on-emacs/
-;; Keywords: DBGp, debugger, php, Xdebug, python, Komodo
-;; Compatibility: Emacs 21.4
-;; 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; 
-;;; Commentary:
+;; Keywords: DBGp, debugger, PHP, Xdebug, Perl, Python, Ruby, Tcl, Komodo
+;; Compatibility: Emacs 22.1
 ;;
-;; This file is part of GEBEN.
-;; GEBEN is a PHP source code level debugger.
-;; This file contains GEBEN's entry command `geben' and some
-;; customizable variables.
-;; 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; 
-;;; Requirements:
+;; This file is not part of GNU Emacs
 ;;
-;; [Server side]
-;; - PHP with Xdebug 2.0.3
-;;    http://xdebug.org/
-;; - Perl, Python and Ruby with Komodo Debugger Extension
-;;    http://aspn.activestate.com/ASPN/Downloads/Komodo/RemoteDebugging
-;;
-;; [Client side]
-;; - Emacs 22.1 and later
-;; - DBGp client(Debug client)
-;;    http://xdebug.org/
-;; 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
 ;; published by the Free Software Foundation; either version 2, or
@@ -48,6 +25,41 @@
 ;; along with this program; see the file COPYING.  If not, write to
 ;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth
 ;; Floor, Boston, MA 02110-1301, USA.
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; 
+;;; Commentary:
+;;
+;; GEBEN is a software package that interfaces Emacs to DBGp protocol
+;; with which you can debug running scripts interactive. At this present
+;; DBGp protocol are supported in several script languages with help of
+;; custom extensions.
+;;
+;;; Usage
+;;
+;; 1. Insert autoload hooks into your .Emacs file.
+;;    -> (autoload 'geben "geben" "PHP Debugger on Emacs" t)
+;; 2. Start GEBEN. By default, M-x geben will start it.
+;;    GEBEN starts to listening to DBGp protocol session connection.
+;; 3. Run debuggee script.
+;;    When the connection is established, GEBEN loads the entry script
+;;    file in geben-mode.
+;; 4. Start debugging. To see geben-mode key bindings, type ?.
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; 
+;;; Requirements:
+;;
+;; [Server side]
+;; - PHP with Xdebug 2.0.3
+;;    http://xdebug.org/
+;; - Perl, Python, Ruby, Tcl with Komodo Debugger Extension
+;;    http://aspn.activestate.com/ASPN/Downloads/Komodo/RemoteDebugging
+;;
+;; [Client side]
+;; - Emacs 22.1 and later
+;; - DBGp client(Debug client)
+;;    http://xdebug.org/
 ;; 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; 
@@ -498,9 +510,8 @@ Possible values: :php :ruby :python etc.")
 ;; backtrace
 
 (defface geben-backtrace-fileuri
-  '((((class color) (background dark))
-     (:foreground "Green" :weight bold))
-    (((class color)) (:foreground "green" :weight bold))
+  '((((class color))
+     (:foreground "green" :weight bold))
     (t (:weight bold)))
   "Face used to highlight fileuri in backtrace buffer."
   :group 'geben-highlighting-faces)
@@ -549,11 +560,14 @@ Possible values: :php :ruby :python etc.")
     (define-key map "q" 'geben-backtrace-mode-quit)
     (define-key map "p" 'previous-line)
     (define-key map "n" 'next-line)
+    (define-key map "?" 'geben-backtrace-mode-help)
     map)
   "Keymap for `geben-backtrace-mode'")
     
 (defun geben-backtrace-mode ()
-  "Major mode for GEBEN's backtrace output."
+  "Major mode for GEBEN's backtrace output.
+The buffer commands are:
+\\{geben-backtrace-mode-map}"
   (interactive)
   (kill-all-local-variables)
   (use-local-map geben-backtrace-mode-map)
@@ -604,7 +618,12 @@ Possible values: :php :ruby :python etc.")
 	(geben-dbgp-indicate-current-line fileuri lineno t))
     (when (interactive-p)
       (message "GEBEN is not started."))))
-      
+
+(defun geben-backtrace-mode-help ()
+  "Display description and key bindings of `geben-backtrace-mode'."
+  (interactive)
+  (describe-function 'geben-backtrace-mode))
+
 ;;--------------------------------------------------------------
 ;; context
 ;;--------------------------------------------------------------
@@ -1018,13 +1037,16 @@ after updating."
     (define-key map "q" 'geben-context-mode-quit)
     (define-key map "p" 'widget-backward)
     (define-key map "n" 'widget-forward)
+    (define-key map "?" 'geben-context-mode-help)
     map)
   "Keymap for `geben-context-mode'")
 
 (defalias 'geben-context-mode-quit 'geben-backtrace-mode-quit)
 
 (defun geben-context-mode ()
-  "Major mode for GEBEN's context output."
+  "Major mode for GEBEN's context output.
+The buffer commands are:
+\\{geben-context-mode-map}"
   (interactive)
   (kill-all-local-variables)
   (use-local-map geben-context-mode-map)
@@ -1041,6 +1063,7 @@ after updating."
   (make-local-variable 'geben-dbgp-context-where)
   (make-local-variable 'geben-dbgp-context-depth)
   (make-local-variable 'geben-dbgp-context-loading)
+  (set (make-local-variable 'tree-widget-theme) "geben")
   (setq header-line-format
 	(list
 	 "Where: "
@@ -1061,6 +1084,11 @@ after updating."
 	(with-current-buffer buf
 	  (setq depth geben-dbgp-context-depth))
 	(geben-dbgp-context-update depth)))))
+
+(defun geben-context-mode-help ()
+  "Display description and key bindings of `geben-context-mode'."
+  (interactive)
+  (describe-function 'geben-context-mode))
 
 ;;--------------------------------------------------------------
 ;; source hash
@@ -1236,9 +1264,8 @@ Or to each own buffer."
   "Break point list")
 
 (defface geben-breakpoint-face
-  '((((class color) (background light))
-     :background "red1")
-    (((class color) (background dark))
+  '((((class color))
+     :foreground "white"
      :background "red1")
     (t :inverse-video t))
   "Face used to highlight various names.
@@ -1676,6 +1703,7 @@ Key mapping and other information is described its help page."
     (define-key map "r" 'geben-breakpoint-list-refresh)
     (define-key map "p" 'previous-line)
     (define-key map "n" 'next-line)
+    (define-key map "?" 'geben-breakpoint-list-mode-help)
     map)
   "Keymap for `geben-breakpoint-list-mode'")
     
@@ -1771,6 +1799,11 @@ The buffer commands are:
   "Refresh breakpoint list."
   (interactive)
   (geben-dbgp-breakpoint-list-refresh))
+
+(defun geben-breakpoint-list-mode-help ()
+  "Display description and key bindings of `geben-breakpoint-list-mode'."
+  (interactive)
+  (describe-function 'geben-breakpoint-list-mode))
 
 ;;------------------------------------------------------------------------
 ;; DBGp protocol handler
@@ -2657,7 +2690,7 @@ described its help page."
   ;;(define-key geben-mode-map "W" 'geben-toggle-save-windows)
 
   ;; misc
-  ;;(define-key geben-mode-map "?" 'geben-help)
+  (define-key geben-mode-map "?" 'geben-mode-help)
   (define-key geben-mode-map "d" 'geben-backtrace)
 
   ;;(define-key geben-mode-map "-" 'negative-argument)
@@ -2685,6 +2718,11 @@ The geben-mode buffer commands:
 (add-hook 'kill-emacs-hook
 	  (lambda ()
 	    (geben-dbgp-reset)))
+
+(defun geben-mode-help ()
+  "Display description and key bindings of `geben-mode'."
+  (interactive)
+  (describe-function 'geben-mode))
 
 (defvar geben-step-type :step-into
   "Step command of what `geben-step-again' acts.
