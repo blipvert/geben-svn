@@ -7,8 +7,7 @@ DBGp protocol are supported in several script languages with help of
 custom extensions.
 
  * PHP with Xdebug
- * Perl, Python, Tcl, JavaScript and Ruby with Komodo Debugger
-   Extensions
+ * Perl, Python, Ruby and Tcl with Komodo Debugger Extensions
 
 Currently GEBEN implements the following features.
 
@@ -73,12 +72,22 @@ INSTALLATION
    Xdebug source code package.
 2. Unpack GEBEN source code package and change directory to the
    unpacked directory.
-3. Run: make
-4. If you are an administrator, Run: sudo make install
-4' Or Run: SITELISP=$HOME/path/to/install make install
-5. Insert autoload hooks into your .Emacs file.
+
+<With GNU make command>
+a. run `make'(or `gmake', depends on your environment).
+b. If you are an administrator, Run: sudo make install
+b' Or Run: SITELISP=$HOME/path/to/install make install
+
+<Without GNU make command>
+a. Byte compile `geben.el'.
+b. Copy `geben.elc' and entire `tree-widget' directory to any
+   directory where Emacs can find.(Or add the path to `load-path'
+   list)
+
+<common>
+3. Insert autoload hooks into your .Emacs file.
     -> (autoload 'geben "geben" "PHP Debugger on Emacs" t)
-6. Restart Emacs.
+4. Restart Emacs.
 
 
 DEBUGGING

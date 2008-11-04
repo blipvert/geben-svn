@@ -2,10 +2,10 @@
 #
 # Makefile for GEBEN
 
-EMACS  = emacs
-CP     = cp -p
-RM     = rm -f
-INSTALL = install -m 644
+EMACS   = emacs
+CP      = cp -p
+RM      = rm -f
+INSTALL = install
 
 .el.elc:
 	$(EMACS) -Q --batch --eval '(byte-compile-file "$<")'
@@ -25,8 +25,9 @@ GUESS-SITELISP := $(shell $(EMACS) -Q --batch --eval '	       \
 		      (setcdr pair (1+ (cdr pair)))	       \
 		    (setq tbl (cons (cons spath 1) tbl))))))   \
 	  load-path)					       \
-    (princ (car (car (sort tbl (lambda (a b)		       \
-			     (> (cdr a) (cdr b))))))))')
+    (princ (or (car (car (sort tbl (lambda (a b)	       \
+				     (> (cdr a) (cdr b))))))   \
+	       "")))')
 
 ifndef SITELISP
 SITELISP := $(GUESS-SITELISP)
@@ -44,10 +45,10 @@ all: $(OBJS)
 
 .PHONY: install
 install: all
-	$(INSTALL) -d $(DEST)
-	$(INSTALL) -t $(DEST) $(SRCS) $(OBJS)
-	$(INSTALL) -d $(DEST-IMG)
-	$(INSTALL) -t $(DEST-IMG) $(IMGS)
+	$(INSTALL) -m 755 -d $(DEST)
+	$(INSTALL) -m 644 $(SRCS) $(OBJS) $(DEST)
+	$(INSTALL) -m 755 -d $(DEST-IMG)
+	$(INSTALL) -m 644 $(IMGS) $(DEST-IMG)
 
 .PHONY: clean
 clean:
