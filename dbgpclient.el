@@ -4,7 +4,7 @@
 ;; Filename: dbgpclient.el
 ;; Author: reedom <fujinaka.tohru@gmail.com>
 ;; Maintainer: reedom <fujinaka.tohru@gmail.com>
-;; Version: 0.18
+;; Version: 0.19
 ;; URL: http://code.google.com/p/geben-on-emacs/
 ;; Keywords: DBGp, debugger, PHP, Xdebug, Perl, Python, Ruby, Tcl, Komodo
 ;; Compatibility: Emacs 22.1
@@ -70,6 +70,9 @@
 ;; dbgpclient
 ;;--------------------------------------------------------------
 
+(defconst dbgpclient-command-prompt "(cmd) ")
+
+(defvar dbgpclient-buffer nil)
 (defvar dbgpclient-processes nil)
 (defvar dbgpclient-listener-table (make-hash-table :size 4)
   "Hash table of DBGp listeners.
@@ -90,13 +93,17 @@ VALUE is `dbgpclient-process' struct.")
 (defmacro dbgpclient-listner-name (port)
   `(format "DBGp-Client(%d)" ,port))
 
+(defun dbgpclient-kill-process (proc)
+  (ignore-errors
+    (with-temp-buffer
+      (set-process-buffer proc (current-buffer)))))
+  
 (defun dbgpclient-kill-listener (port)
-  (interactive "nListener Port: ")
   (let ((dbgp-listener (gethash port dbgpclient-listener-table)))
     (when dbgp-listener
-      (ignore-errors
-	(with-temp-buffer
-	  (set-process-buffer (dbgp-listener-process dbgp-listener) (current-buffer)))))))
+      (dbgpclient-kill-process (dbgp-listener-process dbgp-listener))
+      (remhash port dbgpclient-listener-table)
+      t)))
 
 (defun dbgpclient-kill-all-processes ()
   (interactive)
@@ -104,26 +111,50 @@ VALUE is `dbgpclient-process' struct.")
 	  (ignore-errors
 	    (if (process-buffer proc)
 		(kill-buffer (process-buffer proc))
-	      (with-temp-buffer
-		(set-process-buffer proc (current-buffer))))))
+	      (dbgpclient-kill-process proc))))
 	dbgpclient-processes)
   (setq dbgpclient-processes nil))
 
-(defun dbgpclient (port)
-  (interactive "nListen Port: ")
-  (dbgpclient-exec port
-		   'debugclient-default-chunk-filter
-		   'debugclient-default-chunk-sentinel))
+(defun dbgpclient (port &optional terminate-p)
+  (interactive (list
+		(if current-prefix-arg
+		  (read-number "Listener port to kill: "
+			       (if (< 0 (hash-table-count dbgpclient-listener-table))
+				   (let (first-found-port)
+				     (maphash (lambda (port table)
+						(if (null first-found-port)
+						    (setq first-found-port port)))
+					      dbgpclient-listener-table)
+				     first-found-port)
+				 9000))
+		  (read-number "Listen port: " 9000))
+		(and current-prefix-arg t)))
+  (let ((result (if terminate-p
+		    (dbgpclient-kill-listener port)
+		  (and (not (dbgpclient-listener-alive-p port))
+		       (dbgpclient-exec port
+					'dbgpclient-default-chunk-filter
+					'dbgpclient-default-chunk-sentinel)))))
+    (when (interactive-p)
+      (message (if terminate-p
+		   (if result
+		       "The DBGp client for port %d is terminated."
+		     "DBGp client for port %d is not exists.")
+		 (if result
+		     "The DBGp client for %d is started."
+		   "The DBGp client for %d has already been started."))
+	       port))
+    result))
 
 (defun dbgpclient-exec (port filter sentinel)
   (let ((listener (gethash port dbgpclient-listener-table)))
-    (if (and listener
-	     (eq 'listen (process-status (dbgp-listener-process listener))))
-	(message "DBGp client has already been started.")
+    (unless (and listener
+		 (eq 'listen (process-status (dbgp-listener-process listener))))
       (let ((proc (make-network-process :name (dbgpclient-listner-name port)
 					:server 1
-					:host 'local
 					:service port
+					:family 'ipv4
+					:nowait t
 					:noquery t
 					:filter 'dbgpclient-setup-comint
 					:sentinel 'dbgpclient-listener-sentinel
@@ -135,27 +166,38 @@ VALUE is `dbgpclient-process' struct.")
 						 :filter filter
 						 :sentinel sentinel))
 	(set-process-plist proc (list :port port :listener listener))
-	(puthash port listener dbgpclient-listener-table)
-	listener))))
+	(puthash port listener dbgpclient-listener-table))
+      listener)))
 
-(defun dbgpclient-listener-sentinel (&rest args)
+(defun dbgpclient-listener-alive-p (port)
+  (let ((listener (gethash port dbgpclient-listener-table)))
+    (and listener
+	 (eq 'listen (process-status (dbgp-listener-process listener))))))
+  
+(defun dbgpclient-listener-sentinel (proc string)
   (with-current-buffer (get-buffer-create "*DBGp Sentinel*")
-    (insert (format "%S\n" args))))
+    (insert (format "%S %s\n" proc string))))
 
 (defun dbgpclient-listener-log (&rest args)
   (with-current-buffer (get-buffer-create "*DBGp Log*")
     (insert (format "%S\n" args))))
 
-(defun debugclient-default-chunk-filter (proc string)
+(defun dbgpclient-default-chunk-filter (proc string)
   (with-temp-buffer
     (insert string)
     (let ((xml (xml-parse-region (point-min) (point-max))))
       (erase-buffer)
+      (when (string-match "^.*?\\?>" string)
+	(insert (match-string 0 string))
+	(insert "\n"))
       (xml-print xml)
       (buffer-string))))
 
-(defun debugclient-default-chunk-sentinel (proc string)
-  t)
+(defun dbgpclient-default-chunk-sentinel (proc string)
+  (when (buffer-live-p (process-buffer proc))
+    (with-current-buffer (process-buffer proc)
+      (insert "\nDisconnected.\n\n")
+      (setq dbgpclient-processes (delq proc dbgpclient-processes)))))
 
 (defvar dbgpclient-filter-defer-flag nil
   "Non-nil means don't process anything from the debugger right now.
@@ -170,33 +212,44 @@ It is saved for when this flag is not set.")
   (comint-send-string proc (concat string "\0")))
 
 (defun dbgpclient-setup-comint (proc string)
-  (setq dbgpclient-processes (cons proc dbgpclient-processes))
-  ;; initialize sub process
-  (set-process-query-on-exit-flag proc nil)
+  (if dbgpclient-processes
+      (progn
+	(process-send-eof proc)
+	(dbgpclient-kill-process proc))
+    (setq dbgpclient-processes (cons proc dbgpclient-processes))
+    ;; initialize sub process
+    (set-process-query-on-exit-flag proc nil)
 
-  (let ((buf (generate-new-buffer (process-name proc)))
-	(listener (plist-get (process-plist proc) :listener)))
-    (with-current-buffer buf
-      ;; store PROC to `dbgpclient-buffer-process'.
-      ;; later the adviced `open-network-stream' will pass it
-      ;; comint.
-      (set (make-local-variable 'dbgpclient-buffer-process) proc)
-      (set (make-local-variable 'dbgpclient-filter-defer-flag) nil)
-      (set (make-local-variable 'dbgpclient-filter-defer-faced) nil)
-      (set (make-local-variable 'dbgpclient-filter-pending-text) nil)
-      (setq comint-input-sender 'dbgpclient-send-string))
-    ;; setup comint buffer
-    (ad-activate 'open-network-stream)
-    (unwind-protect
-	(make-comint-in-buffer "DBGp-Client" buf (cons t t))
-      (ad-deactivate 'open-network-stream))
-    ;; update PROC properties
-    (set-process-filter proc #'dbgpclient-process-filter)
-    (with-current-buffer buf
-      (set (make-local-variable 'debugclient-delete-prompt-marker)
-	   (make-marker)))
-    (pop-to-buffer buf)
-    (dbgpclient-process-filter proc string)))
+    (let ((buf (if (buffer-live-p dbgpclient-buffer)
+		   dbgpclient-buffer
+		 (setq dbgpclient-buffer 
+		       (generate-new-buffer (process-name proc)))))
+	  (listener (plist-get (process-plist proc) :listener)))
+      (with-current-buffer buf
+	(rename-buffer (process-name proc) t)
+	;; store PROC to `dbgpclient-buffer-process'.
+	;; later the adviced `open-network-stream' will pass it
+	;; comint.
+	(set (make-local-variable 'dbgpclient-buffer-process) proc)
+	(set (make-local-variable 'dbgpclient-filter-defer-flag) nil)
+	(set (make-local-variable 'dbgpclient-filter-defer-faced) nil)
+	(set (make-local-variable 'dbgpclient-filter-pending-text) nil))
+      ;; setup comint buffer
+      (ad-activate 'open-network-stream)
+      (unwind-protect
+	  (make-comint-in-buffer "DBGp-Client" buf (cons t t))
+	(ad-deactivate 'open-network-stream))
+      ;; update PROC properties
+      (set-process-filter proc #'dbgpclient-process-filter)
+      (set-process-sentinel proc (dbgp-listener-sentinel listener))
+      (with-current-buffer buf
+	(set (make-local-variable 'debugclient-delete-prompt-marker)
+	     (make-marker))
+	;;(set (make-local-variable 'comint-use-prompt-regexp) t)
+	;;(setq comint-prompt-regexp (concat "^" dbgpclient-command-prompt))
+	(setq comint-input-sender 'dbgpclient-send-string))
+      (pop-to-buffer buf)
+      (dbgpclient-process-filter proc string))))
 
 (defun dbgpclient-split-dbgp-string ()
   (let* ((string dbgpclient-filter-pending-text)
@@ -206,20 +259,19 @@ It is saved for when this flag is not set.")
     (while (< i end)
       (if (< 0 (elt string i))
 	  (setq i (1+ i))
-	(progn
-	  (setq len (string-to-number (substring string 0 i)))
-	  (setq i (1+ i))
-	  (when (< (+ i len) end)
-	    (setq chunks (cons (substring string i (+ i len))
-			       chunks))
-	    ;; Remove chunk from `dbgpclient-filter-pending-text'.
-	    ;; Avoid to use `end' because `dbgpclient-filter-pending-text' may
-	    ;; be expanded during processing this loop. (Still I'm not sure..)
-	    (setq dbgpclient-filter-pending-text
-		  (if (< (+ i len 1) (length dbgpclient-filter-pending-text))
-		      (substring dbgpclient-filter-pending-text (+ i len 1))
-		    nil))
-	    (setq i (+ i len 1))))))
+	(setq len (string-to-number (substring string 0 i)))
+	(setq i (1+ i))
+	(when (< (+ i len) end)
+	  (setq chunks (cons (substring string i (+ i len))
+			     chunks))
+	  ;; Remove chunk from `dbgpclient-filter-pending-text'.
+	  ;; Avoid to use `end' because `dbgpclient-filter-pending-text' may
+	  ;; be expanded during processing this loop. (Still I'm not sure..)
+	  (setq dbgpclient-filter-pending-text
+		(if (< (+ i len 1) (length dbgpclient-filter-pending-text))
+		    (substring dbgpclient-filter-pending-text (+ i len 1))
+		  nil))
+	  (setq i (+ i len 1)))))
     (nreverse chunks)))
 
 (defun dbgpclient-process-filter (proc string)
@@ -275,7 +327,7 @@ It is saved for when this flag is not set.")
 	(mapc (lambda (s)
 		(comint-output-filter proc (concat s "\n")))
 	      output)
-	(comint-output-filter proc "(cmd) ")))
+	(comint-output-filter proc dbgpclient-command-prompt)))
     
     (if (with-current-buffer buf
 	  (setq dbgpclient-filter-defer-flag nil)
