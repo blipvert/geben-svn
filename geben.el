@@ -4,7 +4,7 @@
 ;; Filename: geben.el
 ;; Author: reedom <fujinaka.tohru@gmail.com>
 ;; Maintainer: reedom <fujinaka.tohru@gmail.com>
-;; Version: 0.19
+;; Version: 0.20
 ;; URL: http://code.google.com/p/geben-on-emacs/
 ;; Keywords: DBGp, debugger, PHP, Xdebug, Perl, Python, Ruby, Tcl, Komodo
 ;; Compatibility: Emacs 22.1
@@ -168,17 +168,22 @@ Typically `pop-to-buffer' or `switch-to-buffer'."
 	(not (geben-dbgp-dynamic-property-buffer-visiblep)))
     (funcall geben-display-window-function buf))
    (t
-    (let (target-window)
-      (condition-case nil
+    (let ((candidates (make-vector 3 nil))
+	  (dynamic-p (geben-dbgp-dynamic-property-bufferp buf)))
+      (block finder
 	  (walk-windows (lambda (window)
-			  (when (and (not (geben-dbgp-dynamic-property-bufferp
-					   (window-buffer window)))
-				     (eq (selected-window) window))
-			    (setq target-window window)
-			    (error nil))))
-	(error nil))
-      (when target-window
-	(select-window target-window))
+			  (if (geben-dbgp-dynamic-property-bufferp (window-buffer window))
+			      (if dynamic-p
+				  (unless (aref candidates 1)
+				    (aset candidates 1 window)))
+			    (if (eq (selected-window) window)
+				(aset candidates 2 window)
+			      (aset candidates 0 window)
+			      (return-from finder))))))
+      (select-window (or (aref candidates 0)
+			 (aref candidates 1)
+			 (aref candidates 2)
+			 (selected-window)))
       (switch-to-buffer buf))))
   buf)
 
@@ -536,10 +541,11 @@ Possible values: :php :ruby :python etc.")
       (buffer-disable-undo)
       (erase-buffer)
       (dotimes (i (length geben-dbgp-current-stack))
-	(let* ((stack (second (nth i geben-dbgp-current-stack)))
-	       (fileuri (geben-dbgp-regularize-fileuri (cdr (assq 'filename stack))))
-	       (lineno (cdr (assq 'lineno stack)))
-	       (where (cdr (assq 'where stack))))
+	(let* ((stack (nth i geben-dbgp-current-stack))
+	       (fileuri (geben-dbgp-regularize-fileuri (xml-get-attribute stack 'filename)))
+	       (lineno (xml-get-attribute stack 'lineno))
+	       (where (xml-get-attribute stack 'where))
+	       (level (xml-get-attribute stack 'level)))
 	  (insert (format "%s:%s %s\n"
 			  (propertize fileuri 'face "geben-backtrace-fileuri")
 			  (propertize lineno 'face "geben-backtrace-lineno")
@@ -547,22 +553,28 @@ Possible values: :php :ruby :python etc.")
 	  (put-text-property (save-excursion (forward-line -1) (point))
 			     (point)
 			     'geben-stack-frame
-			     (list :fileuri fileuri :lineno lineno))))
+			     (list :fileuri fileuri
+				   :lineno lineno
+				   :level (string-to-number level)))))
       (setq buffer-read-only t)
       (geben-backtrace-mode)
       (goto-char (point-min)))
     (geben-dbgp-display-window buf)))
 
-(defvar geben-backtrace-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map [mouse-2] 'geben-backtrace-mode-mouse-goto)
-    (define-key map "\C-m" 'geben-backtrace-mode-goto)
-    (define-key map "q" 'geben-backtrace-mode-quit)
-    (define-key map "p" 'previous-line)
-    (define-key map "n" 'next-line)
-    (define-key map "?" 'geben-backtrace-mode-help)
-    map)
+(defvar geben-backtrace-mode-map nil
   "Keymap for `geben-backtrace-mode'")
+(unless geben-backtrace-mode-map
+  (setq geben-backtrace-mode-map
+	(let ((map (make-sparse-keymap)))
+	  (define-key map [mouse-2] 'geben-backtrace-mode-mouse-goto)
+	  (define-key map "\C-m" 'geben-backtrace-mode-goto)
+	  (define-key map "q" 'geben-backtrace-mode-quit)
+	  (define-key map "p" 'previous-line)
+	  (define-key map "n" 'next-line)
+	  (define-key map "v" 'geben-backtrace-mode-context)
+	  (define-key map "?" 'geben-backtrace-mode-help)
+	  map)))
+
     
 (defun geben-backtrace-mode ()
   "Major mode for GEBEN's backtrace output.
@@ -623,6 +635,12 @@ The buffer commands are:
   "Display description and key bindings of `geben-backtrace-mode'."
   (interactive)
   (describe-function 'geben-backtrace-mode))
+
+(defun geben-backtrace-mode-context ()
+  (interactive)
+  (let ((stack (get-text-property (point) 'geben-stack-frame)))
+    (when stack
+      (geben-display-context (plist-get stack :level)))))
 
 ;;--------------------------------------------------------------
 ;; context
@@ -1849,7 +1867,8 @@ The buffer commands are:
   (setq geben-dbgp-context-names-alist nil)
   (setq geben-dbgp-context-variables nil)
   (clrhash geben-dbgp-cmd-hash)
-  (clrhash geben-dbgp-source-hash))
+  (clrhash geben-dbgp-source-hash)
+  (setq geben-dbgp-send-command-queue nil))
   
 (defun geben-dbgp-handle-init (msg)
   "Handle a init message."
@@ -1890,7 +1909,9 @@ The buffer commands are:
 	  (unless (functionp func)
 	    (message "%s is not defined" func-name)))))
     (geben-dbgp-cmd-remove tid msg err)
-    (geben-dbgp-handle-status msg err)))
+    (geben-dbgp-handle-status msg err)
+    (when cmd
+      (geben-dbgp-process-command-queue tid))))
 
 (defun geben-dbgp-handle-stream (msg)
   "Handle a stream message."
@@ -1909,8 +1930,7 @@ The buffer commands are:
      ((equal status "stopping")
       (if (geben-dbgp-in-session)
 	  (geben-dbgp-command-stop)
-	;;(geben-dbgp-command-stop)))
-	(gud-basic-call ""))) ;; for bug of Xdebug 2.0.3 with stop command,
+	(gud-basic-call "")))           ; for bug of Xdebug 2.0.3 with stop command,
 					; stopping state comes after stopped state.
      ((equal status "stopped")
       (gud-basic-call "")
@@ -1924,6 +1944,8 @@ The buffer commands are:
 	   (geben-dbgp-context-update 0 t))))))))
 
 ;;; command sending
+
+(defvar geben-dbgp-send-command-queue nil)
 
 (defun geben-send-raw-command (fmt &rest arg)
   "Send a command string to a debugger engine.
@@ -1940,8 +1962,27 @@ required for each dbgp command by the protocol specification."
     (let ((cmd (geben-dbgp-cmd-make operand params))
 	  (tid (geben-dbgp-next-tid)))
       (geben-dbgp-cmd-store tid cmd)
-      (gud-basic-call (geben-dbgp-cmd-expand tid cmd))
+      (if geben-dbgp-send-command-queue
+	  (nconc geben-dbgp-send-command-queue (list (cons tid cmd)))
+	(setq geben-dbgp-send-command-queue (list (cons tid cmd)))
+	(geben-dbgp-process-command-queue))
       tid)))
+
+(defun geben-dbgp-send-command-1 (tid cmd)
+  (gud-basic-call (geben-dbgp-cmd-expand tid cmd)))
+  
+(defun geben-dbgp-process-command-queue (&optional tid)
+  (run-with-idle-timer 0 nil 'geben-dbgp-process-command-queue-1 tid))
+
+(defun geben-dbgp-process-command-queue-1 (&optional tid)
+  (when (and tid geben-dbgp-send-command-queue)
+    (setq geben-dbgp-send-command-queue
+	  (remove-if (lambda (pair)
+		       (eq (car pair) tid))
+		     geben-dbgp-send-command-queue)))
+  (when geben-dbgp-send-command-queue
+    (let ((pair (car geben-dbgp-send-command-queue)))
+      (geben-dbgp-send-command-1 (car pair) (cdr pair)))))
 
 ;;;
 ;;; command/response handlers
@@ -2878,8 +2919,9 @@ hit-value interactively."
 					       (geben-dbgp-find-fileuri local-path)
 					       (geben-dbgp-find-fileuri (file-truename local-path))
 					       (geben-dbgp-get-fileuri-of (file-truename local-path)))
-				  :lineno (or (numberp lineno)
-					      (geben-what-line))
+				  :lineno (if (numberp lineno)
+					      lineno
+					    (geben-what-line))
 				  :local-path local-path
 				  :overlay t))))
 
