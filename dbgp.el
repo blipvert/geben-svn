@@ -98,6 +98,11 @@ to connect to DBGp listener of this address."
   "Face for displaying DBGp protocol response message."
   :group 'dbgp-highlighting-faces)
 
+(defface dbgp-decoded-string-face
+  '((((class color))
+     :inherit 'font-lock-string-face))
+  "Face for displaying decoded string."
+  :group 'dbgp-highlighting-faces)
 ;;--------------------------------------------------------------
 ;; macro
 ;;--------------------------------------------------------------
@@ -194,12 +199,12 @@ for another connection.
 
 -- DBGp listener process custom properties --
 
-:session-init		default function for a new DBGp session 
-			process to initialize a new session.
-:session-filter		default function for a new DBGp session 
-			process to filter protocol messages.
-:session-sentinel	default function for a new DBGp session 
-			called when the session is disconnected.
+:session-accept		function to determine to accept a new
+			DBGp session.
+:session-init		function to initialize a new session.
+:session-filter		function to filter protocol messages.
+:session-sentinel	function called when the session is
+			disconnected.
 :proxy			if the listener is created for a proxy
 			connection, this value has a plist of
 			(:addr :port :idekey :multi-session).
@@ -315,15 +320,15 @@ See `read-from-minibuffer' for details of HISTORY argument."
 		  (dbgp-read-integer (format "Listen port(default %s): " port-default)
 				     port-default 'dbgp-listener-port-history))))
   (let ((result (dbgp-exec port
-			   'dbgp-default-session-init
-			   'dbgp-default-session-filter
-			   'dbgp-default-session-sentinel)))
+			   :session-init 'dbgp-default-session-init
+			   :session-filter 'dbgp-default-session-filter
+			   :session-sentinel 'dbgp-default-session-sentinel)))
     (when (interactive-p)
       (message (cdr result)))
     result))
 
 ;;;###autoload
-(defun dbgp-exec (port init filter sentinel)
+(defun dbgp-exec (port &rest session-params)
   "Start a new DBGp listener listening to PORT."
   (if (dbgp-listener-alive-p port)
       (cons (dbgp-listener-find port)
@@ -331,7 +336,7 @@ See `read-from-minibuffer' for details of HISTORY argument."
     (let ((listener (make-network-process :name (dbgp-make-listner-name port)
 					  :server 1
 					  :service port
-					  :host "localhost"
+					  :family 'ipv4
 					  :nowait t
 					  :noquery t
 					  :filter 'dbgp-comint-setup
@@ -339,10 +344,9 @@ See `read-from-minibuffer' for details of HISTORY argument."
 					  :log 'dbgp-listener-log)))
       (unless listener
 	(error "Failed to create DBGp listener for port %d" port))
-      (dbgp-plist-put listener :session-init init)
-      (dbgp-plist-put listener :session-filter filter)
-      (dbgp-plist-put listener :session-sentinel sentinel)
       (dbgp-plist-put listener :listener listener)
+      (and session-params
+	   (nconc (process-plist listener) session-params))
       (setq dbgp-listeners (cons listener
 				 (remq (dbgp-listener-find port) dbgp-listeners)))
       (cons listener
@@ -396,69 +400,87 @@ associating with the IDEKEY."
 				     default 'dbgp-listener-port-history))
 		(dbgp-read-string "IDE key: " nil 'dbgp-proxy-idekey-history)
 		(not (memq (read-char "Multi session(Y/n): ") '(?N ?n)))))
-  (let* ((result (dbgp-proxy-register-exec proxy-ip-or-addr proxy-port idekey multi-session-p
-					   'dbgp-default-session-init
-					   'dbgp-default-session-filter
-					   'dbgp-default-session-sentinel))
-	 (status (cons result
-		       (cond
-			((processp result)
-			 (format "New DBGp proxy listener is registered. idekey: `%s'" idekey))
-			((stringp result)
-			 (format "DBGp proxy returns an error: %s" result))
-			((eq :proxy-not-found result)
-			 (format "Cannot connect to DBGp proxy \"%s:%s\"." proxy-ip-or-addr proxy-port))
-			((eq :no-response result)
-			 "DBGp proxy responds no message.")
-			((eq :invalid-xml result)
-			 "DBGp proxy responds with invalid XML.")))))
+  (let ((result (dbgp-proxy-register-exec proxy-ip-or-addr proxy-port idekey multi-session-p
+					  :session-init 'dbgp-default-session-init
+					  :session-filter 'dbgp-default-session-filter
+					  :session-sentinel 'dbgp-default-session-sentinel)))
     (and (interactive-p)
-	 (cdr status)
-	 (message (cdr status)))
-    status))
+	 (consp result)
+	 (message (cdr result)))
+    result))
 
 ;;;###autoload
-(defun dbgp-proxy-register-exec (ip-or-addr port idekey multi-session-p
-					    session-init session-filter session-sentinel)
+(defun dbgp-proxy-register-exec (ip-or-addr port idekey multi-session-p &rest session-params)
   "Register a new DBGp listener to an external DBGp proxy.
 The proxy should be found at IP-OR-ADDR / PORT.
 This create a new DBGp listener and register it to the proxy
 associating with the IDEKEY."
-  (let* ((listener-proc (make-network-process :name "DBGp proxy listener"
-					      :server t
-					      :service t
-					      :family 'ipv4
-					      :noquery t
-					      :filter 'dbgp-comint-setup
-					      :sentinel 'dbgp-listener-sentinel))
-	 (listener-port (second (process-contact listener-proc)))
-	 (result (dbgp-proxy-send-command ip-or-addr port
-					  (format "proxyinit -a %s:%s -k %s -m %d"
-						  dbgp-local-address listener-port idekey
-						  (if multi-session-p 1 0)))))
-    (if (and (consp result)
-	     (not (equal "1" (xml-get-attribute result 'success))))
-	(setq result (dbgp-proxy-send-command ip-or-addr port
-					      (format "proxyinit -p %s -k %s -m %d"
-						      listener-port idekey
-						      (if multi-session-p 1 0)))))
-    (if (not (and (consp result)
-		  (equal "1" (xml-get-attribute result 'success))))
-	(progn
-	  (dbgp-process-kill listener-proc)
+  (block dbgp-proxy-register-exec
+    ;; check whether the proxy listener already exists
+    (let ((listener (find-if (lambda (listener)
+			       (let ((proxy (dbgp-proxy-get listener)))
+				 (and proxy
+				      (equal ip-or-addr (plist-get proxy :addr))
+				      (eq port (plist-get proxy :port))
+				      (equal idekey (plist-get proxy :idekey)))))
+			     dbgp-listeners)))
+      (if listener
+	  (return-from dbgp-proxy-register-exec
+	    (cons listener 
+		  (format "The DBGp proxy listener has already been started. idekey: %s" idekey)))))
+
+    ;; send commands to the external proxy instance
+    (let* ((listener-proc (make-network-process :name "DBGp proxy listener"
+						:server t
+						:service t
+						:family 'ipv4
+						:noquery t
+						:filter 'dbgp-comint-setup
+						:sentinel 'dbgp-listener-sentinel))
+	   (listener-port (second (process-contact listener-proc)))
+	   (result (dbgp-proxy-send-command ip-or-addr port
+					    (format "proxyinit -a %s:%s -k %s -m %d"
+						    dbgp-local-address listener-port idekey
+						    (if multi-session-p 1 0)))))
+      (if (and (consp result)
+	       (not (equal "1" (xml-get-attribute result 'success))))
+	  ;; successfully connected to the proxy, but respond an error.
+	  ;; try to send another command.
+	  (setq result (dbgp-proxy-send-command ip-or-addr port
+						(format "proxyinit -p %s -k %s -m %d"
+							listener-port idekey
+							(if multi-session-p 1 0)))))
+      (when (not (and (consp result)
+		      (equal "1" (xml-get-attribute result 'success))))
+	;; connection failed or the proxy respond an error.
+	;; give up.
+	(dbgp-process-kill listener-proc)
+	(return-from dbgp-proxy-register-exec
 	  (if (not (consp result))
-	      result
-	    (dbgp-xml-get-error-message result)))
+	      (cons result
+		    (cond
+		     ((eq :proxy-not-found result)
+		      (format "Cannot connect to DBGp proxy \"%s:%s\"." ip-or-addr port))
+		     ((eq :no-response result)
+		      "DBGp proxy responds no message.")
+		     ((eq :invalid-xml result)
+		      "DBGp proxy responds with invalid XML.")
+		     (t (symbol-name result))))
+	    (cons :error-response
+		  (format "DBGp proxy returns an error: %s"
+			  (dbgp-xml-get-error-message result))))))
+
+      ;; well done.
       (dbgp-plist-put listener-proc :proxy (list :addr ip-or-addr
 						 :port port
 						 :idekey idekey
 						 :multi-session multi-session-p))
-      (dbgp-plist-put listener-proc :session-init session-init)
-      (dbgp-plist-put listener-proc :session-filter session-filter)
-      (dbgp-plist-put listener-proc :session-sentinel session-sentinel)
       (dbgp-plist-put listener-proc :listener listener-proc)
+      (and session-params
+	   (nconc (process-plist listener-proc) session-params))
       (setq dbgp-listeners (cons listener-proc dbgp-listeners))
-      listener-proc)))
+      (cons listener-proc
+	    (format "New DBGp proxy listener is registered. idekey: `%s'" idekey)))))
 
 ;;;###autoload
 (defun dbgp-proxy-unregister (idekey &optional proxy-ip-or-addr proxy-port)
@@ -616,7 +638,8 @@ It is saved for when this flag is not set.")
   "Non-nil means this is text that has been saved for later in `gud-filter'.")
 (defvar dbgp-filter-pending-text nil
   "Non-nil means this is text that has been saved for later in `gud-filter'.")
-(defvar debugclient-delete-prompt-marker nil)
+(defvar dbgp-delete-prompt-marker nil)
+(defvar dbgp-filter-input-list nil)
 
 (defvar dbgp-buffer-process nil
   "")
@@ -634,15 +657,18 @@ It is saved for when this flag is not set.")
 This is the first filter function for a new session process created by a
 listener process. After the setup is done, `dbgp-session-filter' function
 takes over the filter."
-  (if (and dbgp-sessions
-	   (if (dbgp-proxy-p proc)
-	       (not (plist-get (dbgp-proxy-get proc) :multi-session))
-	     (not (dbgp-plist-get proc :multi-session))))
+  (if (dbgp-session-accept-p proc)
       ;; multi session is disabled
       (when (memq (process-status proc) '(run connect open))
-	(process-send-eof proc)
+	;; refuse this session
+	(set-process-filter proc nil)
+	(set-process-sentinel proc nil)
+	(process-send-string proc "stop -i 1\0")
+	(dotimes (i 50)
+	  (and (eq 'open (process-status proc))
+	       (sleep-for 0 1)))
 	(dbgp-process-kill proc))
-    
+    ;; accept
     (setq dbgp-sessions (cons proc dbgp-sessions))
     ;; initialize sub process
     (set-process-query-on-exit-flag proc nil)
@@ -667,6 +693,7 @@ takes over the filter."
 	(set (make-local-variable 'dbgp-buffer-process) proc)
 	(set (make-local-variable 'dbgp-filter-defer-flag) nil)
 	(set (make-local-variable 'dbgp-filter-defer-faced) nil)
+	(set (make-local-variable 'dbgp-filter-input-list) nil)
 	(set (make-local-variable 'dbgp-filter-pending-text) nil))
       ;; setup comint buffer
       (ad-activate 'open-network-stream)
@@ -677,7 +704,7 @@ takes over the filter."
       (set-process-filter proc #'dbgp-session-filter)
       (set-process-sentinel proc #'dbgp-session-sentinel)
       (with-current-buffer buf
-	(set (make-local-variable 'debugclient-delete-prompt-marker)
+	(set (make-local-variable 'dbgp-delete-prompt-marker)
 	     (make-marker))
 	;;(set (make-local-variable 'comint-use-prompt-regexp) t)
 	;;(setq comint-prompt-regexp (concat "^" dbgp-command-prompt))
@@ -688,8 +715,34 @@ takes over the filter."
 		 proc))
       (dbgp-session-filter proc string))))
 
-(defun dbgp-session-send-string (proc string)
+(defun dbgp-session-accept-p (proc)
+  "Determine whether PROC should be accepted to be a new session."
+  (and dbgp-sessions
+       (if (functionp (dbgp-plist-get proc :session-accept))
+	   (funcall (dbgp-plist-get proc :session-accept) proc)
+	 (if (dbgp-proxy-p proc)
+	     (not (plist-get (dbgp-proxy-get proc) :multi-session))
+	   (not (dbgp-plist-get proc :multi-session))))))
+
+(defun dbgp-session-send-string (proc string &optional echo-p)
   "Send a DBGp protocol STRING to PROC."
+  (with-current-buffer (process-buffer proc)
+    (when echo-p
+      (if dbgp-filter-defer-flag
+	  (setq dbgp-filter-input-list
+		(append dbgp-filter-input-list (list string)))
+	(let ((eobp (eobp)))
+	  (save-excursion
+	    (save-restriction
+	      (widen)
+	      (goto-char (process-mark proc))
+	      (insert (propertize
+		       (concat string "\n")
+		       'front-sticky t
+		       'font-lock-face 'comint-highlight-input))
+	      (set-marker (process-mark proc) (point))))
+	  (and eobp
+	       (goto-char (point-max)))))))
   (comint-send-string proc (concat string "\0")))
 
 (defun dbgp-session-filter (proc string)
@@ -722,34 +775,47 @@ takes over the filter."
 	      ;; Process now any text we previously saved up.
 	      (setq dbgp-filter-pending-text (if dbgp-filter-pending-text
 						 (concat dbgp-filter-pending-text string)
-					       string)
-		    chunks (dbgp-session-response-to-chunk))
+					       string))
+	      (setq chunks (dbgp-session-response-to-chunk))
 
 	      ;; If we have been so requested, delete the debugger prompt.
-	      (if (marker-buffer debugclient-delete-prompt-marker)
+	      (if (marker-buffer dbgp-delete-prompt-marker)
 		  (save-restriction
 		    (widen)
 		    (let ((inhibit-read-only t))
 		      (delete-region (process-mark proc)
-				     debugclient-delete-prompt-marker)
+				     dbgp-delete-prompt-marker)
 		      (comint-update-fence)
-		      (set-marker debugclient-delete-prompt-marker nil))))
+		      (set-marker dbgp-delete-prompt-marker nil))))
 		
 	      ;; Save the process output, checking for source file markers.
-	      (setq output
-		    (if (functionp session-filter)
-			(mapcar (lambda (chunk)
-				  (funcall session-filter proc chunk))
-				chunks)
-		      (apply 'concat chunks)))))
+	      (and chunks
+		   (setq output
+			 (concat
+			  (mapconcat (if (functionp session-filter)
+					 (lambda (chunk) (funcall session-filter proc chunk))
+				       #'quote)
+				     chunks
+				     "\n")
+			  "\n"))
+		   (setq output
+			 (concat output
+				 (if dbgp-filter-input-list
+				     (mapconcat (lambda (input)
+						  (concat
+						   (propertize dbgp-command-prompt
+							       'font-lock-face 'comint-highlight-prompt)
+						   (propertize (concat input "\n")
+							       'font-lock-face 'comint-highlight-input)))
+						dbgp-filter-input-list
+						"")
+				   dbgp-command-prompt)))
+		   (setq dbgp-filter-input-list nil))))
 	   ;; Let the comint filter do the actual insertion.
 	   ;; That lets us inherit various comint features.
-	   (ignore-errors
-	    (mapc (lambda (s)
-		    (comint-output-filter proc (concat s "\n")))
-		  output)
-	    (comint-output-filter proc dbgp-command-prompt)))
-    
+	   (and output
+	       (ignore-errors
+		(comint-output-filter proc output))))
     (if (with-current-buffer buf
 	  (setq dbgp-filter-defer-flag nil)
 	  dbgp-filter-defer-faced)
@@ -763,7 +829,7 @@ takes over the filter."
 	 len chunks)
     (while (< i end)
       (if (< 0 (elt string i))
-	  (setq i (1+ i))
+	  (incf i)
 	(setq len (string-to-number (substring string beg i)))
 	(setq i (1+ i))
 	(when (< (+ i len) end)
@@ -775,9 +841,9 @@ takes over the filter."
 	  (setq dbgp-filter-pending-text
 		(if (< (+ i len 1) (length dbgp-filter-pending-text))
 		    (substring dbgp-filter-pending-text (+ i len 1))
-		  nil))
-	  (setq i (+ i len 1))
-	  (setq beg i))))
+		  nil)))
+	(setq i (+ i len 1))
+	(setq beg i)))
     (nreverse chunks)))
 
 (defun dbgp-session-sentinel (proc string)
@@ -793,31 +859,49 @@ takes over the filter."
 
 (defun dbgp-default-session-init (proc)
   (with-current-buffer (process-buffer proc)
-    (pop-to-buffer (current-buffer))
-    (if (fboundp 'jit-lock-register)
-	(jit-lock-register 'dbgp-default-session-fontify))))
+    (pop-to-buffer (current-buffer))))
 
 (defun dbgp-default-session-filter (proc string)
   (with-temp-buffer
+    ;; parse xml
     (insert (replace-regexp-in-string "\n" "" string))
-    (let ((xml (xml-parse-region (point-min) (point-max))))
+    (let ((xml (car (xml-parse-region (point-min) (point-max))))
+	  text)
+      ;; if the xml has a child node encoded with base64, decode it.
+      (when (equal "base64" (xml-get-attribute xml 'encoding))
+	;; remain decoded string
+	(setq text (with-current-buffer (process-buffer proc)
+		     (decode-coding-string
+		      (base64-decode-string (car (xml-node-children xml)))
+		      buffer-file-coding-system)))
+	;; decoded string may have invalid characters for xml,
+	;; so replace the child node with a placeholder
+	(setcar (xml-node-children xml) "\0"))
+
+      ;; create formatted xml string
       (erase-buffer)
       (when (string-match "^.*?\\?>" string)
 	(insert (match-string 0 string))
 	(insert "\n"))
-      (xml-print xml)
-      (propertize (buffer-string)
-		  'face "dbgp-response-face"))))
+      (xml-print (list xml))
+      (add-text-properties (point-min)
+			   (point-max)
+			   (list 'front-sticky t
+				 'font-lock-face 'dbgp-response-face))
+      (when text
+	;; restore decoded string into a right place
+	(goto-char (point-min))
+	(and (search-forward "\0" nil t)
+	     (replace-match (propertize (concat "\n" text)
+					'front-sticky t
+					'font-lock-face 'dbgp-decoded-string-face)
+			    nil t)))
+      ;; return a formatted xml string
+      (buffer-string))))
 
 (defun dbgp-default-session-sentinel (proc string)
   (when (buffer-live-p (process-buffer proc))
     (with-current-buffer (process-buffer proc)
       (insert "\nDisconnected.\n\n"))))
 
-(defun dbgp-default-session-fontify (start end)
-  (when (looking-at "<\\?xml")
-    (add-text-properties start end
-			 (list 'front-sticky t
-			       'font-lock-face 'dbgp-response-face))))
-  
 (provide 'dbgp)
