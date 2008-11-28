@@ -27,28 +27,6 @@
 		       :expression "--")
 	      ,key))
 
-(defsubst geben-cmd-make (session operand params)
-  "Create a new command object."
-  (list :session session
-	:tid (geben-session-next-tid session)
-	:operand operand
-	:param params))
-
-(defun geben-cmd-remove (session tid)
-  "Get a command object from the command hash table specified by TID."
-  (let ((cmds (geben-session-cmd session)))
-    (if (eq tid (plist-get (car cmds) :tid))
-	(prog1
-	    (car cmds)
-	  (setf (geben-session-cmd session) (cdr cmds)))
-      (let (match-cmd)
-	(setf (geben-session-cmd session)
-	      (remove-if (lambda (cmd)
-			   (and (eq tid (plist-get cmd :tid))
-				(setq match-cmd cmd)))
-			 cmds))
-	match-cmd))))
-
 (defsubst geben-cmd-param-get (cmd flag)
   "Get FLAG's parameter used in CMD.
 For a DBGp command \`stack_get -i 1 -d 2\',
@@ -69,4 +47,32 @@ For a DBGp command \`stack_get -i 1 -d 2\',
 				  (plist-get cmd :param)))
 	     " "))
   
+(defsubst geben-session-cmd-make (session operand params)
+  "Create a new command object."
+  (list :session session
+	:tid (geben-session-next-tid session)
+	:operand operand
+	:param params))
+
+(defsubst geben-session-cmd-append (session cmd)
+  (let ((cmds (geben-session-cmd session)))
+    (if cmds
+	(nconc cmds cmd)
+      (setf (geben-session-cmd session) (list cmd)))))
+
+(defun geben-session-cmd-remove (session tid)
+  "Get a command object from the command hash table specified by TID."
+  (let ((cmds (geben-session-cmd session)))
+    (if (eq tid (plist-get (car cmds) :tid))
+	(prog1
+	    (car cmds)
+	  (setf (geben-session-cmd session) (cdr cmds)))
+      (let (match-cmd)
+	(setf (geben-session-cmd session)
+	      (remove-if (lambda (cmd)
+			   (and (eq tid (plist-get cmd :tid))
+				(setq match-cmd cmd)))
+			 cmds))
+	match-cmd))))
+
 (provide 'geben-cmd)

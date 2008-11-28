@@ -10,7 +10,7 @@
 	      (cond ((null x) acc)
 		    ((atom x) (cons x acc))
 		    (t (rec (car x) (rec (cdr x) acc))))))
-	(rec x nil)))
+    (rec x nil)))
 
 (defsubst geben-what-line (&optional pos)
   "Get the number of the line in which POS is located.

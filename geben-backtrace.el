@@ -2,6 +2,12 @@
 ;; stack
 ;;--------------------------------------------------------------
 
+(require 'cl)
+(require 'geben-session)
+(require 'geben-cursor)
+(require 'geben-source)
+(require 'geben-dbgp)
+
 ;; backtrace
 
 (defface geben-backtrace-fileuri
@@ -21,18 +27,24 @@
   :group 'geben
   :type 'hook)
 
+(defun geben-backtrace-buffer (session)
+  (let ((buf (get-buffer-create (geben-session-buffer-get session geben-backtrace-buffer-name))))
+    (unless (eq 'geben-backtrace-mode major-mode)
+      (with-current-buffer buf
+	(geben-backtrace-mode)))
+    buf))
+
 (defun geben-backtrace (session)
   "Display backtrace."
   (unless (geben-session-active-p session)
     (error "GEBEN is out of debugging session."))
-  (let ((buf (get-buffer-create geben-backtrace-buffer-name)))
-    (with-current-buffer buf
-      (setq buffer-read-only nil)
-      (buffer-disable-undo)
+  (with-current-buffer (geben-backtrace-buffer session)
+    (let ((inhibit-read-only t)
+	  (stack (geben-session-stack session)))
       (erase-buffer)
-      (dotimes (i (length (geben-session-get session :stack)))
-	(let* ((stack (nth i (geben-session-get session :stack)))
-	       (fileuri (geben-dbgp-regularize-fileuri (xml-get-attribute stack 'filename)))
+      (dotimes (i (length session))
+	(let* ((stack (nth i stack))
+	       (fileuri (geben-source-fileuri-regularize (xml-get-attribute stack 'filename)))
 	       (lineno (xml-get-attribute stack 'lineno))
 	       (where (xml-get-attribute stack 'where))
 	       (level (xml-get-attribute stack 'level)))
@@ -46,10 +58,8 @@
 			     (list :fileuri fileuri
 				   :lineno lineno
 				   :level (string-to-number level)))))
-      (setq buffer-read-only t)
-      (geben-backtrace-mode)
       (goto-char (point-min)))
-    (geben-dbgp-display-window buf)))
+    (geben-dbgp-display-window (geben-backtrace-buffer session))))
 
 (defvar geben-backtrace-mode-map nil
   "Keymap for `geben-backtrace-mode'")
@@ -58,7 +68,7 @@
 	(let ((map (make-sparse-keymap)))
 	  (define-key map [mouse-2] 'geben-backtrace-mode-mouse-goto)
 	  (define-key map "\C-m" 'geben-backtrace-mode-goto)
-	  (define-key map "q" 'geben-backtrace-mode-quit)
+	  (define-key map "q" 'geben-quit-window)
 	  (define-key map "p" 'previous-line)
 	  (define-key map "n" 'next-line)
 	  (define-key map "v" 'geben-backtrace-mode-context)
@@ -78,6 +88,8 @@ The buffer commands are:
        (lambda (a b) nil))
   (and (fboundp 'font-lock-defontify)
        (add-hook 'change-major-mode-hook 'font-lock-defontify nil t))
+  (setq buffer-read-only t)
+  (buffer-disable-undo)
   (if (fboundp 'run-mode-hooks)
       (run-mode-hooks 'geben-backtrace-mode-hook)
     (run-hooks 'geben-backtrace-mode-hook)))
@@ -85,29 +97,24 @@ The buffer commands are:
 (defalias 'geben-backtrace-mode-mouse-goto 'geben-backtrace-mode-goto)
 (defun geben-backtrace-mode-goto (&optional event)
   (interactive (list last-nonmenu-event))
-  (let ((stack-frame
-	 (if (or (null event)
-		 (not (listp event)))
-	     ;; Actually `event-end' works correctly with a nil argument as
-	     ;; well, so we could dispense with this test, but let's not
-	     ;; rely on this undocumented behavior.
-	     (get-text-property (point) 'geben-stack-frame)
-	   (with-current-buffer (window-buffer (posn-window (event-end event)))
-	     (save-excursion
-	       (goto-char (posn-point (event-end event)))
-	       (get-text-property (point) 'geben-stack-frame)))))
-	same-window-buffer-names
-	same-window-regexps)
-    (when stack-frame
-      (geben-dbgp-indicate-current-line (plist-get stack-frame :fileuri)
-					(plist-get stack-frame :lineno)
-					t))))
-
-(defun geben-backtrace-mode-quit ()
-  "Quit and bury the backtrace mode buffer."
-  (interactive)
-  (quit-window)
-  (geben-where))
+  (geben-with-current-session session
+    (let ((stack-frame
+	   (if (or (null event)
+		   (not (listp event)))
+	       ;; Actually `event-end' works correctly with a nil argument as
+	       ;; well, so we could dispense with this test, but let's not
+	       ;; rely on this undocumented behavior.
+	       (get-text-property (point) 'geben-stack-frame)
+	     (with-current-buffer (window-buffer (posn-window (event-end event)))
+	       (save-excursion
+		 (goto-char (posn-point (event-end event)))
+		 (get-text-property (point) 'geben-stack-frame)))))
+	  same-window-buffer-names
+	  same-window-regexps)
+      (when stack-frame
+	(geben-session-cursor-update session
+				     (plist-get stack-frame :fileuri)
+				     (plist-get stack-frame :lineno))))))
 
 (defun geben-backtrace-mode-help ()
   "Display description and key bindings of `geben-backtrace-mode'."
@@ -116,7 +123,34 @@ The buffer commands are:
 
 (defun geben-backtrace-mode-context ()
   (interactive)
-  (let ((stack (get-text-property (point) 'geben-stack-frame)))
-    (when stack
-      (geben-display-context (plist-get stack :level)))))
+  (geben-with-current-session session
+    (let ((stack (get-text-property (point) 'geben-stack-frame)))
+      (when stack
+	(geben-display-context session (plist-get stack :level))))))
 
+;;; stack_get
+
+(defun geben-dbgp-command-stack-get (session)
+  "Send \`stack_get\' command."
+  (geben-dbgp-send-command session "stack_get"))
+
+(defun geben-dbgp-response-stack-get (session cmd msg)
+  "A response message handler for \`stack_get\' command."
+  (setf (geben-session-stack session) (xml-get-children msg 'stack))
+  (let* ((stack (car (xml-get-children msg 'stack)))
+	 (fileuri (xml-get-attribute-or-nil stack 'filename))
+	 (lineno (xml-get-attribute-or-nil stack'lineno)))
+    (and fileuri lineno
+	 (geben-session-cursor-update session fileuri lineno))))
+
+(defun geben-dbgp-stack-update (session cmd msg)
+  (geben-dbgp-sequence
+    (geben-dbgp-command-stack-get session)
+    (lambda (session cmd msg err)
+      (let ((stack (car (xml-get-children msg 'stack))))
+	(geben-display-context session stack)))))
+
+(add-hook 'geben-dbgp-continuous-command-hook
+	  'geben-dbgp-stack-update)
+
+(provide 'geben-backtrace)

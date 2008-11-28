@@ -10,7 +10,25 @@ INSTALL = install
 .el.elc:
 	$(EMACS) -Q --batch --eval '(byte-compile-file "$<")'
 
-SRCS    = geben.el
+SRCS    = \
+	dbgp.el \
+	geben-common.el \
+	geben-util.el \
+	geben-dbgp-util.el \
+	geben-project.el \
+	geben-session.el \
+	geben-source.el \
+	geben-cursor.el \
+	geben-bp.el \
+	geben-cmd.el \
+	geben-backtrace.el \
+	geben-dbgp.el \
+	geben-redirect.el \
+	geben-dbgp-start.el \
+	geben-mode.el
+
+# geben.el
+
 OBJS    = $(SRCS:%.el=%.elc)
 IMGDIR  = tree-widget/geben
 IMGS    = $(wildcard $(IMGDIR)/*.png)

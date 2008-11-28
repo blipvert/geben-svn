@@ -13,12 +13,6 @@
 
 (defconst geben-process-buffer-name "*GEBEN<%s> process*"
   "Name for DBGp client process console buffer.")
-(defconst geben-redirect-combine-buffer-name "*GEBEN<%s> output *"
-  "Name for the debuggee script's STDOUT and STDERR redirection buffer.")
-(defconst geben-redirect-stdout-buffer-name "*GEBEN<%s> stdout>*"
-  "Name for the debuggee script's STDOUT redirection buffer.")
-(defconst geben-redirect-stderr-buffer-name "*GEBEN<%s> stderr*"
-  "Name for the debuggee script's STDERR redirection buffer.")
 (defconst geben-backtrace-buffer-name "*GEBEN<%s> backtrace*"
   "Name for backtrace buffer.")
 (defconst geben-breakpoint-list-buffer-name "*GEBEN<%s> breakpoint list*"
@@ -28,6 +22,19 @@
 
 (defvar geben-sessions nil)
 (defvar geben-current-session nil)
+
+;; geben session start/finish hooks
+
+(defcustom geben-session-enter-hook nil
+  "*Hook running at when the geben debugging session is starting.
+Each function is invoked with one argument, SESSION"
+  :group 'geben
+  :type 'hook)
+
+(defcustom geben-session-exit-hook nil
+  "*Hook running at when the geben debugging session is finished."
+  :group 'geben
+  :type 'hook)
 
 (defstruct (geben-session
 	    (:constructor nil)
@@ -40,10 +47,13 @@
   initmsg
   xdebug-p
   language
-  (bp (geben-breakpoint-make))
-  (cmd (make-hash-table :size 16))
+  feature
+  bp
+  cmd
+  sending-p
   source
-  (context (geben-dbgp-context-make))
+  context
+  redirect
   stack
   (cursor (list :overlay (make-overlay 0 0) :position nil))
   tempdir
@@ -69,13 +79,15 @@
   (setf (geben-session-language session)
 	(let ((lang (xml-get-attribute-or-nil init-msg 'language)))
 	  (and lang
-	       (intern (concat ":" (downcase lang)))))))
+	       (intern (concat ":" (downcase lang))))))
+  (run-hook-with-args 'geben-session-enter-hook session))
   
-(defsubst geben-session-release (session init-msg)
+(defsubst geben-session-release (session)
   "Initialize a session of a process PROC."
   (setf (geben-session-project session) nil)
   (setf (geben-session-process session) nil)
-  (setf (geben-session-cursor session) nil))
+  (setf (geben-session-cursor session) nil)
+  (run-hook-with-args 'geben-session-exit-hook session))
   
 (defsubst geben-session-active-p (session)
   (let ((proc (geben-session-process session)))
@@ -89,25 +101,6 @@
   (prog1
       (geben-session-tid session)
     (incf (geben-session-tid session))))
-
-;; source
-
-(defsubst geben-session-source-get (session fileuri)
-  (gethash fileuri (geben-session-source session)))
-
-(defsubst geben-session-source-append (session fileuri local-path)
-  (puthash fileuri (list :fileuri fileuri :local-path local-path)
-	   (geben-session-source session)))
-
-(defsubst geben-session-source-local-path (session fileuri)
-  (plist-get (gethash fileuri (geben-session-source session))
-	     :local-path))
-
-(defsubst geben-session-source-fileuri (session local-path)
-  (block geben-session-souce-fileuri
-    (maphash (lambda (fileuri path)
-	       (and (equal local-path path)
-		    (return-from geben-session-souce-fileuri fileuri))))))
 
 ;; buffer
 
@@ -140,8 +133,6 @@
 	 (tempdir (expand-file-name leafdir
 				    (expand-file-name "emacs-geben"
 						      topdir))))
-    ;;(make-directory tempdir t)
-    ;;(set-file-modes tempdir 1023)
     (setf (geben-session-tempdir session) tempdir)))
 
 (defun geben-session-tempdir-remove (session)

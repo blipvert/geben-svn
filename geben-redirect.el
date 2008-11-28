@@ -2,130 +2,130 @@
 ;; redirect
 ;;--------------------------------------------------------------
 
-(defvar geben-dbgp-redirect-stdout-current nil)
-(defvar geben-dbgp-redirect-stderr-current nil)
-(defvar geben-dbgp-redirect-combine-current nil)
+(require 'cl)
+(require 'geben-session)
+(require 'geben-dbgp)
+(require 'geben-cmd)
 
-(defcustom geben-dbgp-redirect-stdout :redirect
-  "*If non-nil, GEBEN redirects the debuggee script's STDOUT.
-If the value is \`:redirect', then STDOUT goes to both GEBEN and
-default destination.
-If the value is \`:intercept', then STDOUT never goes to the
-regular destination but to GEBEN."
-  :group 'geben
-  :type '(choice (const :tag "Disable" nil)
-		 (const :tag "Redirect" :redirect)
-		 (const :tag "Intercept" :intercept))
-  :set (lambda (sym value)
-	 (setq geben-dbgp-redirect-stdout value
-	       geben-dbgp-redirect-stdout-current value)))
+(defconst geben-redirect-combine-buffer-name "*GEBEN<%s> output*"
+  "Name for the debuggee script's STDOUT and STDERR redirection buffer.")
+(defconst geben-redirect-stdout-buffer-name "*GEBEN<%s> stdout*"
+  "Name for the debuggee script's STDOUT redirection buffer.")
+(defconst geben-redirect-stderr-buffer-name "*GEBEN<%s> stderr*"
+  "Name for the debuggee script's STDERR redirection buffer.")
 
-(defcustom geben-dbgp-redirect-stderr :redirect
-  "*If non-nil, GEBEN redirects the debuggee script's STDERR.
-If the value is \`:redirect', then STDERR goes to both GEBEN and
-default destination.
-If the value is \`:intercept', then STDERR never goes to the
-regular destination but to GEBEN."
-  :group 'geben
-  :type '(choice (const :tag "Disable" nil)
-		 (const :tag "Redirect" :redirect)
-		 (const :tag "Intercept" :intercept))
-  :set (lambda (sym value)
-	 (setq geben-dbgp-redirect-stderr value
-	       geben-dbgp-redirect-stderr-current value)))
-
-(defcustom geben-dbgp-redirect-combine t
-  "*If non-nil, redirection of STDOUT and STDERR go to same buffer.
-Or to each own buffer."
-  :group 'geben
-  :type 'boolean
-  :set (lambda (sym value)
-	 (setq geben-dbgp-redirect-combine value
-	       geben-dbgp-redirect-combine-current value)))
-
-(defcustom geben-dbgp-redirect-coding-system 'utf-8-dos
-  "*Coding system for decoding redirect content."
-  :group 'geben
-  :type 'coding-system)
+(defstruct (geben-redirect
+	    (:constructor nil)
+	    (:constructor geben-redirect-make))
+  stdout
+  stderr
+  combine
+  (coding-system 'utf-8))
 
 (defcustom geben-dbgp-redirect-buffer-init-hook nil
   "*Hook running at when a redirection buffer is created."
   :group 'geben
   :type 'hook)
 
-(defvar geben-dbgp-redirect-bufferp nil)
+(defun geben-session-redirect-init (session)
+  (setf (geben-session-redirect session) (geben-redirect-make)))
+
+(add-hook 'geben-session-init-hook #'geben-session-redirect-init)
+
+(defun geben-session-redirect-buffer (session type)
+  (let ((bufname (geben-session-redirect-buffer-name session type)))
+    (when bufname
+      (or (get-buffer bufname)
+	  (with-current-buffer (get-buffer-create bufname)
+	    (setq buffer-undo-list t)
+	    (run-hook-with-args 'geben-dbgp-redirect-buffer-init-hook (current-buffer))
+	    (current-buffer))))))
+  
+(defun geben-session-redirect-buffer-name (session type)
+  "Select buffer name for a redirection type."
+  (let ((redirect (geben-session-redirect session)))
+    (when (or (and (eq type :stdout)
+		   (geben-redirect-stdout redirect))
+	      (and (eq type :stderr)
+		   (geben-redirect-stderr redirect)))
+      (geben-session-buffer-name session 
+				 (cond
+				  ((geben-redirect-combine redirect)
+				   geben-redirect-combine-buffer-name)
+				  ((eq :stdout type)
+				   geben-redirect-stdout-buffer-name)
+				  (t
+				   geben-redirect-stderr-buffer-name))))))
+
+(defun geben-session-redirect-buffer-existp (session)
+  "Check whether any redirection buffer exists."
+  (let (name)
+    (or (and (setq name (geben-session-redirect-buffer-name session :stdout))
+	     (get-buffer name))
+	(and (setq name (geben-session-redirect-buffer-name session :stderr))
+	     (get-buffer name)))))
 
 (defun geben-dbgp-redirect-init (session)
   "Initialize redirection related variables."
-  (when geben-dbgp-redirect-stdout-current
-    (geben-dbgp-command-stdout session geben-dbgp-redirect-stdout-current))
-  (when geben-dbgp-redirect-stderr-current
-    (geben-dbgp-command-stderr session geben-dbgp-redirect-stderr-current)))
+  (let ((stdout (geben-redirect-stdout (geben-session-redirect session)))
+	(stderr (geben-redirect-stderr (geben-session-redirect session))))
+    (when stdout
+      (geben-dbgp-command-stdout session stdout))
+    (when stderr
+      (geben-dbgp-command-stderr session stderr))))
 
-(defun geben-dbgp-redirect-stream (type encoding content)
+(defun geben-dbgp-handle-stream (session msg)
+  "Handle a stream message."
+  (let ((type (case (intern-soft (xml-get-attribute msg 'type))
+		('stdout :stdout)
+		('stderr :stderr)))
+	(encoding (xml-get-attribute msg 'encoding))
+	(content (car (last msg))))
+    (geben-dbgp-redirect-stream session type encoding content)))
+
+(defun geben-dbgp-redirect-stream (session type encoding content)
   "Print redirected string to specific buffers."
-  (let ((bufname (geben-dbgp-redirect-buffer-name type)))
-    (when bufname
-      (let* ((buf (or (get-buffer bufname)
-		      (progn
-			(with-current-buffer (get-buffer-create bufname)
-			  (set (make-local-variable 'geben-dbgp-redirect-bufferp) t)
-			  (setq buffer-undo-list t)
-			  (run-hook-with-args 'geben-dbgp-redirect-buffer-init-hook)
-			  (current-buffer)))))
-      (outwin (display-buffer buf))
-      save-pos)
-	(with-current-buffer buf
-	(setq save-pos (and (eq (point) (point-max))
-			    (point)))
+  (let ((buf (geben-session-redirect-buffer session type))
+	save-pos)
+    (when buf
+      (with-current-buffer buf
+	(setq save-pos (unless (eobp) (point)))
 	(save-excursion
 	  (goto-char (point-max))
 	  (insert (decode-coding-string
 		   (if (string= "base64" encoding)
 		       (base64-decode-string content)
 		     content)
-		   geben-dbgp-redirect-coding-system))))
-	(unless save-pos
-	(save-selected-window
-	  (select-window outwin)
-	  (goto-char (point-max))))))))
+		   (geben-redirect-coding-system (geben-session-redirect session)))))
+	(goto-char (or save-pos
+		       (point-max)))))))
 
-(defun geben-dbgp-redirect-buffer-name (type)
-  "Select buffer name for a redirection type."
-  (when (or (and (eq type :stdout) geben-dbgp-redirect-stdout-current)
-	    (and (eq type :stderr) geben-dbgp-redirect-stderr-current))
-    (cond
-     (geben-dbgp-redirect-combine-current
-      geben-redirect-combine-buffer-name)
-     ((eq :stdout type)
-      geben-redirect-stdout-buffer-name)
-     (t
-      geben-redirect-stderr-buffer-name))))
+(defun geben-dbgp-command-stdout (session mode)
+  "Send `stdout' command."
+  (let ((m (plist-get '(nil 0 :disable 0 :redirect 1 :intercept 2) mode)))
+    (when (and m)
+      (geben-dbgp-send-command session "stdout" (cons "-c" m)))))
 
-(defun geben-dbgp-redirect-buffer-existp ()
-  "Check whether any redirection buffer exists."
-  (let (name)
-    (or (and (setq name (geben-dbgp-redirect-buffer-name :stdout))
-	     (get-buffer name))
-	(and (setq name (geben-dbgp-redirect-buffer-name :stderr))
-	     (get-buffer name)))))
+(defun geben-dbgp-response-stdout (session cmd msg)
+  "A response message handler for `stdout' command."
+  (setf (geben-redirect-stdout (geben-session-redirect session))
+	(case (geben-cmd-param-get cmd "-c")
+	  (0 nil)
+	  (1 :redirect)
+	  (2 :intercept))))
 
-(defun geben-dbgp-dynamic-property-bufferp (buf)
-  (when (buffer-live-p buf)
-    (or (eq buf (get-buffer geben-context-buffer-name))
-	(eq buf (get-buffer (geben-dbgp-redirect-buffer-name :stdout)))
-	(eq buf (get-buffer (geben-dbgp-redirect-buffer-name :stderr))))))
+(defun geben-dbgp-command-stderr (session mode)
+  "Send `stderr' command."
+  (let ((m (plist-get '(nil 0 :disable 0 :redirect 1 :intercept 2) mode)))
+    (when (and m)
+      (geben-dbgp-send-command session "stderr" (cons "-c" m)))))
 
-(defun geben-dbgp-dynamic-property-buffer-visiblep ()
-  "Check whether any window displays any property buffer."
-  (condition-case nil
-      (and (mapc (lambda (buf)
-		   (and (buffer-live-p buf)
-			(get-buffer-window buf)
-			(error nil)))
-		 (list (get-buffer geben-context-buffer-name)
-		 (geben-dbgp-redirect-buffer-existp)))
-	   nil)
-    (error t)))
+(defun geben-dbgp-response-stderr (session cmd msg)
+  "A response message handler for `stderr' command."
+  (setf (geben-redirect-stderr (geben-session-redirect session))
+	(case (geben-cmd-param-get cmd "-c")
+	  (0 nil)
+	  (1 :redirect)
+	  (2 :intercept))))
 
-  
+(provide 'geben-redirect)

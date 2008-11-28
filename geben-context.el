@@ -403,14 +403,12 @@ after updating."
     ;;(define-key map "\C-m" 'geben-context-mode-expand)
     ;;(define-key map "e" 'geben-context-mode-edit)
     (define-key map "r" 'geben-dbgp-context-refresh)
-    (define-key map "q" 'geben-context-mode-quit)
+    (define-key map "q" 'geben-quit-window)
     (define-key map "p" 'widget-backward)
     (define-key map "n" 'widget-forward)
     (define-key map "?" 'geben-context-mode-help)
     map)
   "Keymap for `geben-context-mode'")
-
-(defalias 'geben-context-mode-quit 'geben-backtrace-mode-quit)
 
 (defun geben-context-mode ()
   "Major mode for GEBEN's context output.
@@ -459,4 +457,43 @@ The buffer commands are:
   "Display description and key bindings of `geben-context-mode'."
   (interactive)
   (describe-function 'geben-context-mode))
+
+;; context
+
+(defun geben-dbgp-command-context-names (session &optional depth)
+  (geben-dbgp-send-command session "context_names"
+			   (and (numberp depth)
+				(cons "-d" depth))))
+
+(defun geben-dbgp-response-context-names (session cmd msg)
+  (setq geben-dbgp-context-names-alist
+	(mapcar (lambda (context)
+		  (let ((name (xml-get-attribute context 'name))
+			(id (xml-get-attribute context 'id)))
+		    (cons name (string-to-number id))))
+		(xml-get-children msg 'context))))
+
+;; context
+
+(defun geben-dbgp-command-context-get (session context-id &optional depth)
+  (geben-dbgp-send-command session "context_get"
+			   (cons "-c" context-id)
+			   (and depth
+				(cons "-d" depth))))
+
+(defun geben-dbgp-response-context-get (session cmd msg)
+  t)
+
+;; property
+
+(defun geben-dbgp-command-property-get (session &rest args)
+  (apply 'geben-dbgp-send-command session "property_get"
+	 (mapcar (lambda (key)
+		   (let ((arg (plist-get (car args) key)))
+		     (when arg
+		       (cons (geben-dbgp-cmd-param-for key) arg))))
+		 '(:depth :context-id :name :max-data-size :type :page :key :address))))
+
+(defun geben-dbgp-response-property-get (session cmd msg)
+  t)
 
