@@ -17,12 +17,12 @@ SRCS    = \
 	geben-dbgp-util.el \
 	geben-project.el \
 	geben-session.el \
+	geben-cmd.el \
+	geben-dbgp.el \
 	geben-source.el \
 	geben-cursor.el \
 	geben-bp.el \
-	geben-cmd.el \
 	geben-backtrace.el \
-	geben-dbgp.el \
 	geben-redirect.el \
 	geben-dbgp-start.el \
 	geben-mode.el

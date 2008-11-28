@@ -2,6 +2,7 @@
 ;; DBGp protocol handler
 ;;--------------------------------------------------------------
 
+(require 'geben-common)
 (require 'geben-session)
 (require 'geben-dbgp-util)
 (require 'geben-session)

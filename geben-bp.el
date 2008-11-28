@@ -2,14 +2,14 @@
 ;; breakpoints
 ;;==============================================================
 
-(eval-and-compile
-  (require 'cl)
-  (require 'geben-util)
-  (require 'geben-session)
-  (require 'geben-dbgp-util)
-  (require 'geben-source)
-  (require 'geben-cursor)
-  (require 'geben-dbgp))
+(require 'cl)
+(require 'geben-common)
+(require 'geben-util)
+(require 'geben-session)
+(require 'geben-dbgp-util)
+(require 'geben-source)
+(require 'geben-cursor)
+(require 'geben-dbgp)
 
 (defstruct (geben-breakpoint
 	    (:constructor nil)

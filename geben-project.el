@@ -3,6 +3,7 @@
 ;;--------------------------------------------------------------
 
 (require 'cl)
+(require 'geben-common)
 
 (defstruct (geben-abstract-project)
   accept-language			; symbol or nil 

@@ -5,6 +5,7 @@
 (require 'cl)
 (require 'xml)
 (require 'dbgp)
+(require 'geben-common)
 (require 'geben-util)
 
 ;;--------------------------------------------------------------

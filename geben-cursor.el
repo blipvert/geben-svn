@@ -1,4 +1,5 @@
 (require 'cl)
+(require 'geben-common)
 (require 'geben-session)
 (require 'geben-dbgp-util)
 (require 'geben-source)

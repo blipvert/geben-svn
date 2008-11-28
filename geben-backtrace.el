@@ -3,6 +3,7 @@
 ;;--------------------------------------------------------------
 
 (require 'cl)
+(require 'geben-common)
 (require 'geben-session)
 (require 'geben-cursor)
 (require 'geben-source)
