@@ -19,7 +19,7 @@
       (unless err
 	(if (equal "break" (xml-get-attribute msg 'status))
 	    ;; it is nonconforming to DBGp specs; anyway manage it.
-	    nil
+	    (run-hook-with-args 'geben-dbgp-continuous-command-hook session)
 	  (geben-dbgp-command-step-into session))))))
 
 ;; features
@@ -105,8 +105,8 @@ of the function is passed to feature_set DBGp command."
 (add-hook 'geben-dbgp-init-hook 'geben-dbgp-init-fetch-entry-source t)
 (add-hook 'geben-dbgp-init-hook 'geben-dbgp-feature-init t)
 (add-hook 'geben-dbgp-init-hook 'geben-dbgp-redirect-init t)
-(add-hook 'geben-dbgp-init-hook 'geben-dbgp-command-context-names t)
-(add-hook 'geben-dbgp-init-hook 'geben-dbgp-breakpoint-restore t)
+;;(add-hook 'geben-dbgp-init-hook 'geben-dbgp-command-context-names t)
+;;(add-hook 'geben-dbgp-init-hook 'geben-dbgp-breakpoint-restore t)
 (add-hook 'geben-dbgp-init-hook 'geben-dbgp-init-proceed-to-first-line t)
 
 (provide 'geben-dbgp-init)

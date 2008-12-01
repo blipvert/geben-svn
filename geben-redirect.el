@@ -18,9 +18,9 @@
 (defstruct (geben-redirect
 	    (:constructor nil)
 	    (:constructor geben-redirect-make))
-  stdout
-  stderr
-  combine
+  (stdout :redirect)
+  (stderr :redirect)
+  (combine t)
   (coding-system 'utf-8))
 
 (defcustom geben-dbgp-redirect-buffer-init-hook nil

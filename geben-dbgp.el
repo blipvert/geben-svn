@@ -108,7 +108,7 @@ Return a cmd list."
 
 (defun geben-dbgp-response-step-into (session cmd msg)
   "A response message handler for \`step_into\' command."
-  (run-hooks 'geben-dbgp-continuous-command-hook))
+  (run-hook-with-args 'geben-dbgp-continuous-command-hook session))
 
 ;; step_over
 
@@ -118,7 +118,7 @@ Return a cmd list."
 
 (defun geben-dbgp-response-step-over (session cmd msg)
   "A response message handler for \`step_over\' command."
-  (run-hooks 'geben-dbgp-continuous-command-hook))
+  (run-hook-with-args 'geben-dbgp-continuous-command-hook session))
 
 ;; step_out
 
@@ -128,7 +128,7 @@ Return a cmd list."
 
 (defun geben-dbgp-response-step-out (session cmd msg)
   "A response message handler for \`step_out\' command."
-  (run-hooks 'geben-dbgp-continuous-command-hook))
+  (run-hook-with-args 'geben-dbgp-continuous-command-hook session))
 
 ;; run
 
@@ -138,7 +138,7 @@ Return a cmd list."
 
 (defun geben-dbgp-response-run (session cmd msg)
   "A response message handler for \`run\' command."
-  (run-hooks 'geben-dbgp-continuous-command-hook))
+  (run-hook-with-args 'geben-dbgp-continuous-command-hook session))
 
 ;;; stop
 

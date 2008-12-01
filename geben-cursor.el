@@ -20,7 +20,7 @@
     (and lineno
 	 (floatp lineno)
 	 (setq lineno 1))		; restrict to integer
-    (setcdr (geben-session-cursor session) (cons fileuri lineno)))
+    (plist-put (geben-session-cursor session) :position (cons fileuri lineno)))
   (geben-cursor-indicate session))
 
 (defun geben-cursor-indicate (session)
@@ -51,7 +51,7 @@ will be displayed in a window."
     (if (null position)
 	(when (overlayp overlay)
 	  (delete-overlay overlay)
-	  (setcar cursor nil))
+	  (plist-put cursor :overlay nil))
       (let ((buf (geben-source-visit local-path))
 	    pos)
 	(when buf
@@ -62,8 +62,8 @@ will be displayed in a window."
 	      (setq pos (point))
 	      (if (overlayp overlay)
 		  (move-overlay overlay pos pos)
-		(setcar cursor
-			(setq overlay (make-overlay pos pos buf)))
+		(plist-put cursor :overlay
+			   (setq overlay (make-overlay pos pos buf)))
 		(overlay-put overlay
 			     'before-string
 			     (propertize "x"

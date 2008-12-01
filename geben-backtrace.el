@@ -138,20 +138,17 @@ The buffer commands are:
   "Send \`stack_get\' command."
   (geben-dbgp-send-command session "stack_get"))
 
-(defun geben-dbgp-response-stack-get (session cmd msg)
-  "A response message handler for \`stack_get\' command."
-  (setf (geben-session-stack session) (xml-get-children msg 'stack))
-  (let* ((stack (car (xml-get-children msg 'stack)))
-	 (fileuri (xml-get-attribute-or-nil stack 'filename))
-	 (lineno (xml-get-attribute-or-nil stack'lineno)))
-    (and fileuri lineno
-	 (geben-session-cursor-update session fileuri lineno))))
-
-(defun geben-dbgp-stack-update (session cmd msg)
+(defun geben-dbgp-stack-update (session)
   (geben-dbgp-sequence
     (geben-dbgp-command-stack-get session)
     (lambda (session cmd msg err)
-      (let ((stack (car (xml-get-children msg 'stack))))
+      (unless err
+	(setf (geben-session-stack session) (xml-get-children msg 'stack))
+	(let* ((stack (car (xml-get-children msg 'stack)))
+	       (fileuri (xml-get-attribute-or-nil stack 'filename))
+	       (lineno (xml-get-attribute-or-nil stack'lineno)))
+	  (and fileuri lineno
+	       (geben-session-cursor-update session fileuri lineno)))
 	(run-hook-with-args 'geben-dbgp-stack-update-hook
 			    session 0)))))
 

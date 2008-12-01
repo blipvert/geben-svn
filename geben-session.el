@@ -49,14 +49,14 @@ Each function is invoked with one argument, SESSION"
   xdebug-p
   language
   feature
+  redirect
   bp
   cmd
   sending-p
   source
-  context
-  redirect
   stack
-  (cursor (list :overlay (make-overlay 0 0) :position nil))
+  context
+  (cursor (list :overlay nil :position nil))
   tempdir
   )
   
