@@ -28,7 +28,7 @@
   '((:set max_data 32768)
     (:set max_depth 1)
     (:set max_children 32)
-    (:get breakpoint_types geben-dbgp-store-breakpoint-types))
+    (:get breakpoint_types geben-dbgp-breakpoint-store-types))
   "*Specifies set of feature variables for each new debugging session.
 Each entry forms a list (METHOD FEATURE_NAME VALUE_OR_CALLBACK).
 METHOD is either `:get' or `:set'.
@@ -81,12 +81,26 @@ of the function is passed to feature_set DBGp command."
 			     (t param))))
 		 (geben-dbgp-command-feature-set session name value)))
 	      (:get
-	       (if (and (symbolp param)
-			(fboundp param))
-		   (geben-dbgp-sequence
-		    (geben-dbgp-command-feature-get session name)
-		     param))
-		 (error "`geben-dbgp-feature-alist' has invalid entry: %S" entry)))))))
+	       (condition-case error-sexp
+		   (if (and (symbolp param)
+			    (fboundp param))
+		       (geben-dbgp-sequence
+			   (geben-dbgp-command-feature-get session name)
+			 param))
+		 (error
+		  (warn "`geben-dbgp-feature-alist' has invalid entry: %S" entry)))))))))
+
+;; feature
+
+(defun geben-dbgp-command-feature-get (session feature)
+  "Send \`feature_get\' command."
+  (geben-dbgp-send-command session "feature_get" (cons "-n" feature)))
+
+(defun geben-dbgp-command-feature-set (session feature value)
+  "Send \`feature_get\' command."
+  (geben-dbgp-send-command session "feature_set"
+			   (cons "-n" feature)
+			   (cons "-v" (format "%S" (eval value)))))
 
 (add-hook 'geben-dbgp-init-hook 'geben-dbgp-init-fetch-entry-source t)
 (add-hook 'geben-dbgp-init-hook 'geben-dbgp-feature-init t)
@@ -95,3 +109,4 @@ of the function is passed to feature_set DBGp command."
 (add-hook 'geben-dbgp-init-hook 'geben-dbgp-breakpoint-restore t)
 (add-hook 'geben-dbgp-init-hook 'geben-dbgp-init-proceed-to-first-line t)
 
+(provide 'geben-dbgp-init)

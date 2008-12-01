@@ -31,7 +31,7 @@
 (defun geben-session-redirect-init (session)
   (setf (geben-session-redirect session) (geben-redirect-make)))
 
-(add-hook 'geben-session-init-hook #'geben-session-redirect-init)
+(add-hook 'geben-session-enter-hook #'geben-session-redirect-init)
 
 (defun geben-session-redirect-buffer (session type)
   (let ((bufname (geben-session-redirect-buffer-name session type)))

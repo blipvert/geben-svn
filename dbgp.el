@@ -116,6 +116,10 @@ to connect to DBGp listener of this address."
 	(plist-put plist prop val)
       (set-process-plist proc (list prop val)))))
 
+(defsubst dbgp-xml-get-error-node (xml)
+  (car
+   (xml-get-children xml 'error)))
+
 (defsubst dbgp-xml-get-error-message (xml)
   (car
    (xml-node-children

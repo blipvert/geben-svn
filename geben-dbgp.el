@@ -30,19 +30,19 @@
 (defun geben-dbgp-handle-init (session msg)
   "Handle a init message."
   (geben-session-init session msg)
-  (run-hook-with-args 'geben-dbgp-init-hook session msg))
+  (run-hook-with-args 'geben-dbgp-init-hook session))
 
 (defun geben-dbgp-handle-response (session msg)
   "Handle a response message."
   (let* ((tid (geben-dbgp-tid-read msg))
 	 (cmd (geben-session-cmd-remove session tid))
-	 (err (dbgp-xml-get-error-message msg)))
+	 (err (dbgp-xml-get-error-node msg)))
     (geben-dbgp-handle-status session msg)
     (geben-dbgp-process-command-queue session)
     (cond
      (err
       (message "Command error: %s"
-	       (third (car-safe (xml-get-children (car err) 'message)))))
+	       (dbgp-xml-get-error-message msg)))
      (cmd
       (let* ((operand (replace-regexp-in-string
 		       "_" "-" (xml-get-attribute msg 'command)))
@@ -59,14 +59,16 @@
   (let ((status (xml-get-attribute msg 'status)))
     (cond
      ((equal status "stopping")
+      (accept-process-output)
       (and (geben-session-active-p session)
 	   (geben-dbgp-command-stop session))))))
 
 ;;; command sending
 
 (defun geben-dbgp-send-string (session string)
-  (and (geben-session-active-p session)
-       (dbgp-session-send-string session string t)))
+  (and (string< "" string)
+       (geben-session-active-p session)
+       (dbgp-session-send-string (geben-session-process session) string t)))
 
 (defun geben-send-raw-command (session fmt &rest arg)
   "Send a command string to a debugger engine.
@@ -182,17 +184,5 @@ Return a cmd list."
       (if name
 	  (cons name result)
 	result))))
-
-;; feature
-
-(defun geben-dbgp-command-feature-get (session feature)
-  "Send \`feature_get\' command."
-  (geben-dbgp-send-command session "feature_get" (cons "-n" feature)))
-
-(defun geben-dbgp-command-feature-set (session feature value)
-  "Send \`feature_get\' command."
-  (geben-dbgp-send-command session "feature_set"
-			   (cons "-n" feature)
-			   (cons "-v" (format "%S" (eval value)))))
 
 (provide 'geben-dbgp)

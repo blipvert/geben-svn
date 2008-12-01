@@ -105,7 +105,8 @@ and call `geben-dbgp-entry' with each chunk."
       (insert "\nDisconnected.\n\n")))
   (let ((session (dbgp-plist-get proc :session)))
     (when session
-      (geben-session-release session)
+      (ignore-errors
+	(geben-session-release session))
       (accept-process-output)
       (setq geben-sessions (remq session geben-sessions)))))
 

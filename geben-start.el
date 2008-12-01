@@ -1,3 +1,4 @@
+(require 'geben-dbgp-init)
 (require 'geben-mode)
 
 ;;;###autoload

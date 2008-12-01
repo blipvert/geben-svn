@@ -75,8 +75,8 @@ Each function is invoked with one argument, SESSION"
   (geben-session-tempdir-setup session)
   (setf (geben-session-initmsg session) init-msg)
   (setf (geben-session-xdebug-p session)
-	(and (member "Xdebug" (geben-flatten init-msg))
-	     t))
+	(equal "Xdebug" (car (xml-node-children
+			      (car (xml-get-children init-msg 'engine))))))
   (setf (geben-session-language session)
 	(let ((lang (xml-get-attribute-or-nil init-msg 'language)))
 	  (and lang

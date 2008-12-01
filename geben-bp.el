@@ -539,7 +539,7 @@ the file."
 (defun geben-session-bp-init (session)
   (setf (geben-session-bp session) (geben-breakpoint-make)))
 
-(add-hook 'geben-session-init-hook #'geben-session-bp-init)
+(add-hook 'geben-session-enter-hook #'geben-session-bp-init)
 
 (defun geben-session-bp-release (session)
   (when geben-show-breakpoints-debugging-only
@@ -547,12 +547,14 @@ the file."
 
 (add-hook 'geben-session-exit-hook #'geben-session-bp-release)
 
-(defun geben-dbgp-breakpoint-store-types (session cmd msg)
+(defun geben-dbgp-breakpoint-store-types (session cmd msg err)
   (when (equal "1" (xml-get-attribute msg 'supported))
     (let ((types (mapcar
 		  (lambda (type)
 		    (intern (concat ":" type)))
-		  (car (xml-node-children msg)))))
+		  (split-string (or (car (xml-node-children msg))
+				    "")
+				" "))))
       (if (geben-session-xdebug-p session)
 	  ;; Xdebug 2.0.3 supports the following types but they aren't
 	  ;; included in the response. Push them in the list manually.

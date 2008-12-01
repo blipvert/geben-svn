@@ -58,7 +58,7 @@ For a DBGp command \`stack_get -i 1 -d 2\',
 (defsubst geben-session-cmd-append (session cmd)
   (let ((cmds (geben-session-cmd session)))
     (if cmds
-	(nconc cmds cmd)
+	(nconc cmds (list cmd))
       (setf (geben-session-cmd session) (list cmd)))))
 
 (defun geben-session-cmd-remove (session tid)

@@ -119,10 +119,15 @@ A source object forms a property list with three properties
   (when (file-exists-p local-path)
     (let ((buf (find-file-noselect local-path)))
       (geben-dbgp-display-window buf)
-      (run-hook-with-args 'geben-after-visit-hook buf)
+      (run-hook-with-args 'geben-source-visit-hook buf)
       buf)))
 
 ;; session
+
+(defun geben-session-source-init (session)
+  (setf (geben-session-source session) (make-hash-table :test 'equal)))
+
+(add-hook 'geben-session-enter-hook #'geben-session-source-init)
 
 (defun geben-session-source-add (session fileuri local-path content)
   (let ((tempdir (geben-session-tempdir session)))
