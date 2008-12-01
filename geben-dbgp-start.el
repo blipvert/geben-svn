@@ -17,7 +17,7 @@
 		   ((geben-project-p project)
 		    (dbgp-exec (geben-project-listen-port project)
 			       :project project
-			       :sessoin-accept 'geben-dbgp-session-accept-p
+			       :session-accept 'geben-dbgp-session-accept-p
 			       :session-init 'geben-dbgp-session-init
 			       :session-filter 'geben-dbgp-session-filter
 			       :session-sentinel 'geben-dbgp-session-sentinel))
@@ -27,7 +27,7 @@
 					      (geben-proxy-project-proxy-idekey project)
 					      (geben-proxy-project-proxy-multi-session project)
 					      :project project
-					      :sessoin-accept 'geben-dbgp-session-accept-p
+					      :session-accept 'geben-dbgp-session-accept-p
 					      :session-init 'geben-dbgp-session-init
 					      :session-filter 'geben-dbgp-session-filter
 					      :session-sentinel 'geben-dbgp-session-sentinel))))
@@ -68,6 +68,7 @@
   (let ((session (geben-session-make :project (dbgp-plist-get proc :project)
 				     :process proc)))
     (push session geben-sessions)
+    (dbgp-plist-put proc :session session)
     (with-current-buffer (process-buffer proc)
       (rename-buffer (geben-session-buffer-name session geben-process-buffer-name) t))))
   

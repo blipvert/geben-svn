@@ -122,12 +122,15 @@ The buffer commands are:
   (interactive)
   (describe-function 'geben-backtrace-mode))
 
+(defvar geben-dbgp-stack-update-hook nil)
+
 (defun geben-backtrace-mode-context ()
   (interactive)
   (geben-with-current-session session
     (let ((stack (get-text-property (point) 'geben-stack-frame)))
       (when stack
-	(geben-display-context session (plist-get stack :level))))))
+	(run-hook-with-args 'geben-dbgp-stack-update-hook
+			    session (plist-get stack :level))))))
 
 ;;; stack_get
 
@@ -149,7 +152,8 @@ The buffer commands are:
     (geben-dbgp-command-stack-get session)
     (lambda (session cmd msg err)
       (let ((stack (car (xml-get-children msg 'stack))))
-	(geben-display-context session stack)))))
+	(run-hook-with-args 'geben-dbgp-stack-update-hook
+			    session 0)))))
 
 (add-hook 'geben-dbgp-continuous-command-hook
 	  'geben-dbgp-stack-update)

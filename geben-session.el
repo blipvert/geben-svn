@@ -130,10 +130,12 @@ Each function is invoked with one argument, SESSION"
   "Setup temporary directory."
   (let* ((proc (geben-session-process session))
 	 (topdir (file-truename geben-temporary-file-directory))
+	 (gebendir (expand-file-name "emacs-geben" topdir))
 	 (leafdir (format "%d" (second (process-contact proc))))
-	 (tempdir (expand-file-name leafdir
-				    (expand-file-name "emacs-geben"
-						      topdir))))
+	 (tempdir (expand-file-name leafdir gebendir)))
+    (unless (file-directory-p gebendir)
+      (make-directory gebendir)
+      (set-file-modes tempdir 1023))
     (setf (geben-session-tempdir session) tempdir)))
 
 (defun geben-session-tempdir-remove (session)

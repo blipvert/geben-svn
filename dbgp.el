@@ -657,7 +657,7 @@ It is saved for when this flag is not set.")
 This is the first filter function for a new session process created by a
 listener process. After the setup is done, `dbgp-session-filter' function
 takes over the filter."
-  (if (dbgp-session-accept-p proc)
+  (if (not (dbgp-session-accept-p proc))
       ;; multi session is disabled
       (when (memq (process-status proc) '(run connect open))
 	;; refuse this session
@@ -717,12 +717,12 @@ takes over the filter."
 
 (defun dbgp-session-accept-p (proc)
   "Determine whether PROC should be accepted to be a new session."
-  (and dbgp-sessions
-       (if (functionp (dbgp-plist-get proc :session-accept))
-	   (funcall (dbgp-plist-get proc :session-accept) proc)
+  (if (functionp (dbgp-plist-get proc :session-accept))
+      (funcall (dbgp-plist-get proc :session-accept) proc)
+    (and dbgp-sessions
 	 (if (dbgp-proxy-p proc)
-	     (not (plist-get (dbgp-proxy-get proc) :multi-session))
-	   (not (dbgp-plist-get proc :multi-session))))))
+	     (plist-get (dbgp-proxy-get proc) :multi-session)
+	   (dbgp-plist-get proc :multi-session)))))
 
 (defun dbgp-session-send-string (proc string &optional echo-p)
   "Send a DBGp protocol STRING to PROC."
