@@ -22,28 +22,30 @@ If POS is omitted, then the current position is used."
       (beginning-of-line)
       (1+ (count-lines 1 (point))))))
 
-(defsubst geben-plist-push (plist prop value)
-  (let ((l (plist-get plist prop)))
-    (cond
-     ((consp l)
-      (plist-put plist prop
-		 (cons value (plist-get plist prop))))
-     ((null l)
-      (setf plist (plist-put plist prop (list value))))
-     (t
-      (error "geben-plist-push: cannot add value; type of prop `%s' is not `list' but `%s'."
-	     prop (type-of value))))))
+(defmacro geben-plist-push (plist prop value)
+  `(let* ((plist ,plist)
+	  (l (plist-get plist ,prop)))
+     (cond
+      ((consp l)
+       (plist-put plist ,prop
+		  (cons ,value (plist-get plist ,prop))))
+      ((null l)
+       (plist-put plist ,prop (list ,value)))
+      (t
+       (error "geben-plist-push: cannot add value; type of prop `%s' is not `list' but `%s'."
+	      ,prop (type-of ,value))))))
 
-(defsubst geben-plist-append (plist prop value)
-  (let ((l (plist-get plist prop)))
-    (cond
-     ((consp l)
-      (nconc l (list value)))
-     ((null l)
-      (setf plist (plist-put plist prop (list value))))
-     (t
-      (error "geben-plist-add: cannot add value; type of prop `%s' is not `list' but `%s'."
-	     prop (type-of value))))))
+(defmacro geben-plist-append (plist prop value)
+  `(let* ((plist ,plist)
+	  (l (plist-get plist ,prop)))
+     (cond
+      ((consp l)
+       (nconc l (list ,value)))
+      ((null l)
+       (plist-put plist ,prop (list ,value)))
+      (t
+       (error "geben-plist-add: cannot add value; type of prop `%s' is not `list' but `%s'."
+	      ,prop (type-of ,value))))))
 
 (defmacro geben-lexical-bind (bindings &rest body)
   (declare (indent 1))

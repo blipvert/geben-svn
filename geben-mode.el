@@ -93,8 +93,10 @@ The geben-mode buffer commands:
   
 (add-hook 'geben-source-visit-hook 'geben-enter-geben-mode)
 
-(defun geben-enter-geben-mode (buf)
-  (geben-mode 1))
+(defun geben-enter-geben-mode (session buf)
+  (with-current-buffer buf
+    (geben-mode 1)
+    (set (make-local-variable 'geben-current-session) session)))
 
 (add-hook 'geben-source-release-hook
 	  (lambda () (geben-mode 0)))

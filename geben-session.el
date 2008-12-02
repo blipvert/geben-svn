@@ -71,7 +71,9 @@ Each function is invoked with one argument, SESSION"
 
 (defsubst geben-session-init (session init-msg)
   "Initialize a session of a process PROC."
-  (pop-to-buffer (process-buffer (geben-session-process session)))
+  (let ((buf (process-buffer (geben-session-process session))))
+    (and buf
+	 (pop-to-buffer buf)))
   (geben-session-tempdir-setup session)
   (setf (geben-session-initmsg session) init-msg)
   (setf (geben-session-xdebug-p session)
@@ -88,6 +90,7 @@ Each function is invoked with one argument, SESSION"
   (setf (geben-session-project session) nil)
   (setf (geben-session-process session) nil)
   (setf (geben-session-cursor session) nil)
+  (geben-session-tempdir-remove session)
   (run-hook-with-args 'geben-session-exit-hook session))
   
 (defsubst geben-session-active-p (session)
@@ -135,7 +138,7 @@ Each function is invoked with one argument, SESSION"
 	 (tempdir (expand-file-name leafdir gebendir)))
     (unless (file-directory-p gebendir)
       (make-directory gebendir)
-      (set-file-modes tempdir 1023))
+      (set-file-modes gebendir #o1777))
     (setf (geben-session-tempdir session) tempdir)))
 
 (defun geben-session-tempdir-remove (session)

@@ -22,10 +22,10 @@
 			       :session-filter 'geben-dbgp-session-filter
 			       :session-sentinel 'geben-dbgp-session-sentinel))
 		   ((geben-proxy-project-p project)
-		    (dbgp-proxy-register-exec (geben-proxy-project-proxy-addr project)
-					      (geben-proxy-project-proxy-port project)
-					      (geben-proxy-project-proxy-idekey project)
-					      (geben-proxy-project-proxy-multi-session project)
+		    (dbgp-proxy-register-exec (geben-proxy-project-addr project)
+					      (geben-proxy-project-port project)
+					      (geben-proxy-project-idekey project)
+					      (geben-proxy-project-multi-session project)
 					      :project project
 					      :session-accept 'geben-dbgp-session-accept-p
 					      :session-init 'geben-dbgp-session-init
@@ -42,9 +42,9 @@
 				(format "port %s"
 					(geben-project-listen-port project))
 			      (format "proxy %s:%s-%s"
-				      (geben-proxy-project-proxy-addr project)
-				      (geben-proxy-project-proxy-port project)
-				      (geben-proxy-project-proxy-idekey project)))
+				      (geben-proxy-project-addr project)
+				      (geben-proxy-project-port project)
+				      (geben-proxy-project-idekey project)))
 			    (second error-sexp))))
 	   (beep)
 	   (read-char msg nil 3)))))

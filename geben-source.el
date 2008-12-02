@@ -35,6 +35,7 @@ A source object forms a property list with three properties
 (defvar geben-source-release-hook nil)
 
 (defun geben-source-release (source)
+  "Release a SOURCE object."
   (let ((buf (find-buffer-visiting (or (plist-get source :local-path) ""))))
     (when buf
       (with-current-buffer buf
@@ -56,6 +57,7 @@ A source object forms a property list with three properties
 			    fileuri))
   
 (defun geben-source-fileuri (session local-path)
+  "Guess a file uri string which counters to LOCAL-PATH."
   (let* ((tempdir (geben-session-tempdir session))
 	 (templen (length tempdir)))
     (concat "file://"
@@ -67,7 +69,7 @@ A source object forms a property list with three properties
 	      local-path))))
 
 (defun geben-source-local-path (session fileuri)
-  "Generate path string from FILEURI to store files temporarily."
+  "Generate path string from FILEURI to store temporarily."
   (let ((local-path (geben-source-local-path-in-server session fileuri)))
     (when local-path
       (expand-file-name (substring local-path 1)
@@ -94,50 +96,50 @@ A source object forms a property list with three properties
     (:ruby "index.rb")
     (t "index.html")))
 
-(defun geben-source-write-file (path content)
-  "Write CONTENT to file."
-  (make-directory (file-name-directory path) t)
-  (ignore-errors
-    (with-current-buffer (or (find-buffer-visiting path)
-			     (create-file-buffer path))
-      (let ((inhibit-read-only t))
-	(buffer-disable-undo)
-	(widen)
-	(erase-buffer)
-	(font-lock-mode 0)
-	(let ((encoding (detect-coding-string content t)))
-	  (unless (eq 'undecided encoding)
-	    (set-buffer-file-coding-system encoding))
-	  (insert (decode-coding-string content encoding))))
-      (with-temp-message ""
-	(write-file path)
-	(kill-buffer (current-buffer))))
-    t))
+(defun geben-source-find-session (temp-path)
+  "Find a session which may have a file at TEMP-PATH in its temporary directory tree."
+  (find-if (lambda (session)
+	     (let ((tempdir (geben-session-tempdir session)))
+	       (ignore-errors
+		 (string= tempdir (substring temp-path 0 (length tempdir))))))
+	   geben-sessions))
 
 (defun geben-source-visit (local-path)
   "Visit to a local source code file."
   (when (file-exists-p local-path)
-    (let ((buf (find-file-noselect local-path)))
+    (let* ((session (geben-source-find-session local-path))
+	   (project (and session
+			 (geben-session-project session)))
+	   (coding-system (and project
+			       (geben-abstract-project-content-coding-system project)))
+	   (buf (if coding-system
+		    (let ((coding-system-for-read coding-system)
+			  (coding-system-for-write coding-system))
+		      (find-file-noselect local-path))
+		  (find-file-noselect local-path))))
       (geben-dbgp-display-window buf)
-      (run-hook-with-args 'geben-source-visit-hook buf)
+      (run-hook-with-args 'geben-source-visit-hook session buf)
       buf)))
 
 ;; session
 
 (defun geben-session-source-init (session)
+  "Initialize a source hash table of the SESSION."
   (setf (geben-session-source session) (make-hash-table :test 'equal)))
 
 (add-hook 'geben-session-enter-hook #'geben-session-source-init)
 
 (defun geben-session-source-add (session fileuri local-path content)
+  "Add a source object to SESSION."
   (let ((tempdir (geben-session-tempdir session)))
     (unless (file-directory-p tempdir)
       (make-directory tempdir t)
-      (set-file-modes tempdir 1023)))
-  (geben-source-write-file local-path content)
+      (set-file-modes tempdir #o0700)))
+  (geben-session-source-write-file session local-path content)
   (puthash fileuri (geben-source-make fileuri local-path) (geben-session-source session)))
 
 (defun geben-session-source-release (session)
+  "Release source objects."
   (maphash (lambda (fileuri source)
 	     (geben-source-release source))
 	   (geben-session-source session)))
@@ -152,14 +154,41 @@ A source object forms a property list with three properties
 	   (geben-session-source session)))
 
 (defsubst geben-session-source-local-path (session fileuri)
+  "Find a known local-path that counters to FILEURI."
   (plist-get (gethash fileuri (geben-session-source session))
 	     :local-path))
 
 (defsubst geben-session-source-fileuri (session local-path)
+  "Find a known fileuri that counters to LOCAL-PATH."
   (block geben-session-souce-fileuri
     (maphash (lambda (fileuri path)
 	       (and (equal local-path path)
 		    (return-from geben-session-souce-fileuri fileuri))))))
+
+(defsubst geben-session-source-content-coding-system (session content)
+  "Guess a coding-system for the CONTENT."
+  (or (geben-project-content-coding-system (geben-session-project session))
+      (detect-coding-string content t)))
+
+(defun geben-session-source-write-file (session path content)
+  "Write CONTENT to file."
+  (make-directory (file-name-directory path) t)
+  (ignore-errors
+    (with-current-buffer (or (find-buffer-visiting path)
+			     (create-file-buffer path))
+      (let ((inhibit-read-only t)
+	    (coding-system (geben-session-source-content-coding-system session content)))
+	(buffer-disable-undo)
+	(widen)
+	(erase-buffer)
+	(font-lock-mode 0)
+	(unless (eq 'undecided coding-system)
+	  (set-buffer-file-coding-system coding-system))
+	(insert (decode-coding-string content coding-system)))
+      (with-temp-message ""
+	(write-file path)
+	(kill-buffer (current-buffer))))
+    t))
 
 ;;; dbgp
 

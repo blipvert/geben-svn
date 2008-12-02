@@ -6,31 +6,36 @@
 (require 'geben-common)
 
 (defstruct (geben-abstract-project)
-  accept-language			; symbol or nil 
+  accept-language			; symbol or nil
+  fileurl
+  (content-coding-system 'utf-8)
   feature
   breakpoint
-  redirect
-  fileurl)
+  redirect)
 
 (defstruct (geben-project
+	    (:constructor nil)
+	    (:constructor geben-project-make)
 	    (:include geben-abstract-project))
   listen-port				; integer
   accept-idekey				; string or nil
   accept-ip)				; string or nil
 
 (defstruct (geben-proxy-project
+	    (:constructor nil)
+	    (:constructor geben-proxy-project-make)
 	    (:include geben-abstract-project))
-  proxy-addr
-  proxy-port
-  proxy-idekey
-  proxy-multi-session)
+  addr
+  port
+  idekey
+  multi-session)
 
 (defvar geben-projects
-  (list (make-geben-project :listen-port 9000)
-	(make-geben-proxy-project :proxy-addr "localhost"
-				  :proxy-port 9001
-				  :proxy-idekey "hoge"
-				  :proxy-multi-session t)))
+  (list (geben-project-make :listen-port 9000)
+	(geben-proxy-project-make :addr "localhost"
+				  :port 9001
+				  :idekey "hoge"
+				  :multi-session t)))
 
 (defvar geben-running-projects nil
   "")
