@@ -195,12 +195,13 @@ hit-value interactively.
 			       (lambda (x)
 				 (if (member (car x)
 					     (geben-breakpoint-types (geben-session-bp session)))
-				     '((:line . "l)Line")
-				       (:call . "c)Call")
-				       (:return . "r)Return")
-				       (:exception . "e)Exception")
-				       (:conditional . "d)Conditional")
-				       (:watch . "w)Watch"))))))))
+				     x))
+			       '((:line . "l)Line")
+				 (:call . "c)Call")
+				 (:return . "r)Return")
+				 (:exception . "e)Exception")
+				 (:conditional . "d)Conditional")
+				 (:watch . "w)Watch"))))))
       (when (null candidates)
 	(error "No breakpoint type is supported by the debugger engine."))
       (let* ((c (read-char (concat "Breakpoint type: "
@@ -400,18 +401,34 @@ hit-value interactively."
 				 (geben-bp-make session :watch
 						:expression expr))))
 
-(defun geben-unset-breakpoint-line ()
+(defun geben-unset-breakpoint-line (fileuri path lineno)
   "Clear a breakpoint set at the current line."
-  (interactive)
+  (interactive (list nil nil nil))
   (geben-with-current-session session
-    (geben-dbgp-command-breakpoint-remove session)))
+    (when (interactive-p)
+      (setq path (buffer-file-name (current-buffer)))
+      (when (stringp path)
+	(setq lineno (and (get-file-buffer path)
+			  (with-current-buffer (get-file-buffer path)
+			    (geben-what-line))))
+	(setq fileuri (or (geben-session-source-fileuri session path)
+			  (geben-source-fileuri session path)
+			  (concat "file://" (file-truename path))))))
+    (let* ((bp (find-if (lambda (bp)
+			  (and (eq :line (plist-get bp :type))
+			       (eq lineno (plist-get bp :lineno))
+			       (equal fileuri (plist-get bp :fileuri))))
+			(geben-breakpoint-list (geben-session-bp session))))
+	   (bid (and bp (plist-get bp :id))))
+      (if bid
+	  (geben-dbgp-command-breakpoint-remove session bid)))))
 
 (defun geben-show-breakpoint-list ()
   "Display breakpoint list.
 The breakpoint list buffer is under `geben-breakpoint-list-mode'.
 Key mapping and other information is described its help page."
   (interactive)
-  (geben-breakpoint-list-refresh))
+  (geben-breakpoint-list-refresh t))
 
 (defvar geben-eval-history nil)
 

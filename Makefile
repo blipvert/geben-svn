@@ -10,8 +10,12 @@ INSTALL = install
 .el.elc:
 	$(EMACS) -Q --batch --eval '(byte-compile-file "$<")'
 
-SRCS    = \
-	dbgp.el \
+DBGP-SRC	= dbgp.el
+GEBEN-SRC	= geben.el
+SRCS		= $(DBGP-SRC) $(GEBEN-SRC)
+OBJS		= $(SRCS:%.el=%.elc)
+
+GEBEN-MODULES	= \
 	geben-common.el \
 	geben-util.el \
 	geben-dbgp-util.el \
@@ -25,11 +29,13 @@ SRCS    = \
 	geben-backtrace.el \
 	geben-redirect.el \
 	geben-dbgp-start.el \
-	geben-mode.el
+	geben-dbgp-init.el \
+	geben-mode.el \
+	geben-start.el
 
-# geben.el
+MODULES		= $(DBGP-SRC) $(GEBEN-MODULES)
+MODULE-OBJS	= $(MODULES:%.el=%.elc)
 
-OBJS    = $(SRCS:%.el=%.elc)
 IMGDIR  = tree-widget/geben
 IMGS    = $(wildcard $(IMGDIR)/*.png)
 
@@ -59,10 +65,16 @@ DEST = $(SITELISP)/geben
 DEST-IMG = $(DEST)/tree-widget/geben
 
 .PHONY: all
-all: $(OBJS)
+all: compile-modules
+
+.PHONY: compile-modules
+compile-modules: $(MODULE-OBJS)
+
+.PHONY: compile
+compile: $(OBJS)
 
 .PHONY: install
-install: all
+install: compile
 	$(INSTALL) -m 755 -d $(DEST)
 	$(INSTALL) -m 644 $(SRCS) $(OBJS) $(DEST)
 	$(INSTALL) -m 755 -d $(DEST-IMG)
@@ -70,4 +82,8 @@ install: all
 
 .PHONY: clean
 clean:
-	$(RM) $(OBJS)
+	$(RM) $(OBJS) $(MODULE-OBJS) $(GEBEN-SRC)
+
+$(GEBEN-SRC): $(GEBEN-MODULES)
+	perl -an -e '$$x ? (/^\(provide/ and $$x=0) : (/^\(require/ or $$x=1); print if $$x' $^ > $@
+	echo "(provide 'geben)" >> $@

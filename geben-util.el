@@ -48,7 +48,8 @@ If POS is omitted, then the current position is used."
 	      ,prop (type-of ,value))))))
 
 (defmacro geben-lexical-bind (bindings &rest body)
-  (declare (indent 1))
+  (declare (indent 1)
+	   (debug (sexp &rest form)))
   (cl-macroexpand-all
    (nconc
     (list 'lexical-let (mapcar (lambda (arg)

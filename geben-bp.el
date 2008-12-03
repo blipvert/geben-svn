@@ -51,6 +51,7 @@ debugging is finished."
 
 (defun geben-bp-make (session type &rest params)
   "Create a new line breakpoint object."
+  (assert (geben-session-p session))
   (let ((bp (append (list :type type) params)))
     ;; force :lineno and :hit-value value to be integer.
     (mapc (lambda (prop)
@@ -106,7 +107,7 @@ before proceeding."
   (let* ((breakpoint (geben-session-bp session))
 	 (list (geben-breakpoint-list breakpoint)))
     (if list
-	(nconc list bp)
+	(nconc list (list bp))
       (setf (geben-breakpoint-list breakpoint) (list bp)))))
 
 (defun geben-session-bp-remove (session id-or-obj)
@@ -251,20 +252,21 @@ id-or-obj should be either a breakpoint id or a breakpoint object."
   "Major mode for GEBEN's breakpoint list.
 The buffer commands are:
 \\{geben-breakpoint-list-mode-map}"
-  (kill-all-local-variables)
-  (use-local-map geben-breakpoint-list-mode-map)
-  (setq major-mode 'geben-breakpoint-list-mode)
-  (setq mode-name "GEBEN breakpoints")
-  (set (make-local-variable 'revert-buffer-function)
-       (lambda (a b) nil))
-  (and (fboundp 'font-lock-defontify)
-       (add-hook 'change-major-mode-hook 'font-lock-defontify nil t))
-  (set (make-local-variable 'geben-current-session) session)
-  (setq buffer-read-only t)
-  (buffer-disable-undo)
-  (if (fboundp 'run-mode-hooks)
-      (run-mode-hooks 'geben-breakpoint-list-mode-hook)
-    (run-hooks 'geben-breakpoint-list-mode-hook)))
+  (unless (eq major-mode 'geben-breakpoint-list-mode)
+    (kill-all-local-variables)
+    (use-local-map geben-breakpoint-list-mode-map)
+    (setq major-mode 'geben-breakpoint-list-mode)
+    (setq mode-name "GEBEN breakpoints")
+    (set (make-local-variable 'revert-buffer-function)
+	 (lambda (a b) nil))
+    (and (fboundp 'font-lock-defontify)
+	 (add-hook 'change-major-mode-hook 'font-lock-defontify nil t))
+    (setq buffer-read-only t)
+    (buffer-disable-undo)
+    (if (fboundp 'run-mode-hooks)
+	(run-mode-hooks 'geben-breakpoint-list-mode-hook)
+      (run-hooks 'geben-breakpoint-list-mode-hook)))
+  (set (make-local-variable 'geben-current-session) session))
 
 (defun geben-breakpoint-list-mark-delete ()
   "Add deletion mark."
@@ -303,11 +305,11 @@ The buffer commands are:
 		     bid)
 		(geben-dbgp-sequence-bind (bid)
 		  (geben-dbgp-send-command session "breakpoint_remove" (cons "-d" bid))
-		  (lambda (session cmd msg)
+		  (lambda (session cmd msg err)
 		    ;; remove a stray breakpoint from hash table.
-		    (when (dbgp-xml-get-error-message msg)
+		    (when err
 		      (geben-session-bp-remove session bid))))
-	      (setq (geben-breakpoint-list (geben-session-bp session))
+	      (setf (geben-breakpoint-list (geben-session-bp session))
 		    (delete-if (lambda (bp1)
 				 (geben-bp= bp bp1))
 			       (geben-breakpoint-list (geben-session-bp session)))))))
@@ -342,13 +344,16 @@ The buffer commands are:
   (interactive)
   (describe-function 'geben-breakpoint-list-mode))
 
-(defun geben-breakpoint-list-refresh ()
+(defun geben-breakpoint-list-refresh (&optional force)
   "Display breakpoint list.
 The breakpoint list buffer is under `geben-breakpoint-list-mode'.
 Key mapping and other information is described its help page."
   (interactive)
   (geben-with-current-session session
-    (when (geben-session-active-p session)
+    (when (and (geben-session-active-p session)
+	       (or force
+		   (geben-session-buffer-visible-p session
+						   geben-breakpoint-list-buffer-name)))
       (geben-dbgp-sequence
 	  (geben-dbgp-send-command session "breakpoint_list")
 	(lambda (session cmd msg err)
@@ -404,8 +409,7 @@ Key mapping and other information is described its help page."
 	(breakpoints (geben-breakpoint-list (geben-session-bp session)))
 	pos)
     (with-current-buffer buf
-      (unless (eq major-mode 'geben-breakpoint-list-mode)
-	(geben-breakpoint-list-mode session))
+      (geben-breakpoint-list-mode session)
       (let ((inhibit-read-only t))
 	(erase-buffer)
 	(if (or (not (listp breakpoints))
@@ -459,7 +463,8 @@ Key mapping and other information is described its help page."
 		      (if (geben-session-active-p session) "Hits  " "")
 		      "Property"))
 	(goto-char (point-min))))
-    (geben-dbgp-display-window buf)))
+    (save-selected-window
+      (geben-dbgp-display-window buf))))
 
 ;; overlay
 
@@ -656,34 +661,17 @@ the file."
 
 ;;; breakpoint_remove
 
-(defun geben-dbgp-command-breakpoint-remove (session &optional fileuri path lineno)
+(defun geben-dbgp-command-breakpoint-remove (session bid)
   "Send `breakpoint_remove' command."
-  (setq path (or path
-		 (buffer-file-name (current-buffer))))
-  (when (stringp path)
-    (setq lineno (or lineno
-		     (and (get-file-buffer path)
-			  (with-current-buffer (get-file-buffer path)
-			    (geben-what-line)))))
-    (setq fileuri (or fileuri
-		      (geben-session-source-fileuri session path)
-		      (concat "file://" (file-truename path))))
-    (when (and fileuri lineno)
-      (let* ((bp (find-if (lambda (bp)
-			    (and (eq :line (plist-get bp :type))
-				 (eq lineno (plist-get bp :lineno))
-				 (equal fileuri (plist-get bp :fileuri))))
-			  (geben-breakpoint-list (geben-session-bp session))))
-	     (bid (and bp (plist-get bp :id))))
-	(when bp
-	  (if (geben-session-active-p session)
-	      (geben-dbgp-sequence-bind (bid)
-		(geben-dbgp-send-command session "breakpoint_remove" (cons "-d" bid))
-		(lambda (session cmd msg)
-		  (when (dbgp-xml-get-error-message msg)
-		    ;; remove a stray breakpoint from hash table.
-		    (geben-session-bp-remove session bid))))
-	    (geben-session-bp-remove session bp)))))))
+  (if (geben-session-active-p session)
+      (geben-dbgp-sequence-bind (bid)
+	(geben-dbgp-send-command session "breakpoint_remove" (cons "-d" bid))
+	(lambda (session cmd msg err)
+	  (when (dbgp-xml-get-error-message msg)
+	    ;; remove a stray breakpoint from hash table.
+	    (geben-session-bp-remove session bid)
+	    (geben-breakpoint-list-refresh))))
+    (geben-session-bp-remove session bid)))
 
 (defun geben-dbgp-response-breakpoint-remove (session cmd msg)
   "A response message handler for \`breakpoint_remove\' command."
@@ -700,4 +688,11 @@ the file."
   "A response message handler for \`breakpoint_list\' command."
   t)
 
+(defun geben-dbgp-breakpoint-list-refresh (session)
+  (geben-breakpoint-list-refresh))
+  
+(add-hook 'geben-dbgp-continuous-command-hook
+	  #'geben-dbgp-breakpoint-list-refresh)
+
+  
 (provide 'geben-bp)

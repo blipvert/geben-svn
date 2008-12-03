@@ -61,7 +61,8 @@ Each function is invoked with one argument, SESSION"
   )
   
 (defmacro geben-with-current-session (binding &rest body)
-  (declare (indent 1))
+  (declare (indent 1)
+	   (debug (symbolp &rest form)))
   (cl-macroexpand-all
    `(let ((,binding geben-current-session))
       (when ,binding
@@ -93,7 +94,7 @@ Each function is invoked with one argument, SESSION"
   (geben-session-tempdir-remove session)
   (run-hook-with-args 'geben-session-exit-hook session))
   
-(defsubst geben-session-active-p (session)
+(defsubst geben-session-alive-p (session)
   (let ((proc (geben-session-process session)))
     (and (processp proc)
 	 (eq 'open (process-status proc)))))
@@ -121,6 +122,18 @@ Each function is invoked with one argument, SESSION"
 
 (defsubst geben-session-buffer-get (session format-string)
   (get-buffer-create (geben-session-buffer-name session format-string)))
+
+(defsubst geben-session-buffer-live-p (session format-string)
+  (buffer-live-p (get-buffer (geben-session-buffer-name session format-string))))
+
+(defsubst geben-session-buffer-visible-p (session format-string)
+  (let ((buf (get-buffer (geben-session-buffer-name session format-string))))
+    (and buf
+	 (buffer-live-p buf)
+	 (block window-found
+	   (walk-windows (lambda (window)
+			   (if (eq buf (window-buffer window))
+			       (return-from window-found t))))))))
 
 ;; temporary directory
 

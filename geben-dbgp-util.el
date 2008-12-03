@@ -6,19 +6,21 @@
 ;;==============================================================
 
 (defmacro* geben-dbgp-sequence (cmd &rest callback)
-  (declare (indent 1))
+  (declare (indent 1)
+	   (debug (form &rest form)))
   (list 'progn
 	(list 'geben-plist-append cmd
 	      :callback (car callback))))
 
-(defmacro* geben-dbgp-sequence-bind (bindings cmd &rest callback)
-  (declare (indent 1))
+(defmacro* geben-dbgp-sequence-bind (bindings cmd callback)
+  (declare (indent 1)
+	   (debug (sexp form lambda-expr)))
   (cl-macroexpand-all
    (list 'progn
 	 (list 'geben-plist-append cmd
 	       :callback (if bindings
-			     (list 'geben-lexical-bind bindings (car callback))
-			   (car callback))))))
+			     (list 'geben-lexical-bind bindings callback)
+			   callback)))))
 
 (defun geben-dbgp-decode-string (string data-encoding coding-system)
   "Decode encoded STRING."

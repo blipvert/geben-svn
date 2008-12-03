@@ -167,7 +167,7 @@ A source object forms a property list with three properties
   "Find a known fileuri that counters to LOCAL-PATH."
   (block geben-session-souce-fileuri
     (maphash (lambda (fileuri path)
-	       (and (equal local-path path)
+	       (and (equal local-path (plist-get path :local-path))
 		    (return-from geben-session-souce-fileuri fileuri)))
 	     (geben-session-source session))))
 

@@ -72,6 +72,7 @@
     (push session geben-sessions)
     (dbgp-plist-put proc :session session)
     (with-current-buffer (process-buffer proc)
+      (set (make-local-variable 'geben-current-session) session)
       (rename-buffer (geben-session-buffer-name session geben-process-buffer-name) t))))
   
 (defun geben-dbgp-session-filter (proc string)
