@@ -60,7 +60,7 @@
     ;;  a. capable for multi sessions.
     ;;  b. not used yet; it's the first session for the project.
     (or (and (geben-proxy-project-p project)
-	     (geben-proxy-project-proxy-multi-session project))
+	     (geben-proxy-project-multi-session project))
 	(not (find-if (lambda (session)
 			(eq project (dbgp-plist-get proc :project)))
 		      geben-sessions)))))

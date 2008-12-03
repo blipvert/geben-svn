@@ -94,7 +94,7 @@ Each function is invoked with one argument, SESSION"
   (geben-session-tempdir-remove session)
   (run-hook-with-args 'geben-session-exit-hook session))
   
-(defsubst geben-session-alive-p (session)
+(defsubst geben-session-active-p (session)
   (let ((proc (geben-session-process session)))
     (and (processp proc)
 	 (eq 'open (process-status proc)))))
