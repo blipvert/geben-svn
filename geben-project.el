@@ -1,11 +1,12 @@
-;;--------------------------------------------------------------
-;; structures
-;;--------------------------------------------------------------
-
 (require 'cl)
 (require 'geben-common)
 
-(defstruct (geben-abstract-project)
+;;==============================================================
+;; structures
+;;==============================================================
+
+(defstruct (geben-abstract-project
+	    (:constructor nil))
   accept-language			; symbol or nil
   fileurl
   (content-coding-system 'utf-8)

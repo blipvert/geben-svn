@@ -4,6 +4,10 @@
 (require 'geben-dbgp-util)
 (require 'geben-source)
 
+;;==============================================================
+;; cursor
+;;==============================================================
+
 (defface geben-cursor-arrow-face
   '((((class color))
      :foreground "cyan"))

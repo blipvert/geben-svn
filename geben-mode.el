@@ -6,9 +6,9 @@
 (require 'geben-backtrace)
 (require 'geben-redirect)
 
-;;-------------------------------------------------------------
+;;==============================================================
 ;;  geben-mode
-;;-------------------------------------------------------------
+;;==============================================================
 
 (defvar geben-mode-map nil)
 (unless geben-mode-map
@@ -250,7 +250,7 @@ hit-value interactively."
 			(buffer-file-name (current-buffer)))))
       (geben-set-breakpoint-common session hit-value
 				   (geben-bp-make
-				    :line
+				    session :line
 				    :fileuri (or fileuri
 						 (geben-session-source-fileuri session local-path)
 						 (geben-session-source-fileuri session (file-truename local-path))
@@ -295,7 +295,7 @@ hit-value interactively."
       (setq hit-value current-prefix-arg))
     (when (string< "" name)
       (geben-set-breakpoint-common session hit-value
-				   (geben-bp-make :call
+				   (geben-bp-make session :call
 						  :function name
 						  :fileuri fileuri)))))
 
@@ -328,7 +328,7 @@ hit-value interactively."
       (setq hit-value current-prefix-arg))
     (when (string< "" name)
       (geben-set-breakpoint-common session hit-value
-				   (geben-bp-make :return
+				   (geben-bp-make session :return
 						  :function name
 						  :fileuri fileuri)))))
 
@@ -348,7 +348,7 @@ hit-value interactively."
 		current-prefix-arg))
   (geben-with-current-session session
     (geben-set-breakpoint-common session hit-value
-				 (geben-bp-make :exception
+				 (geben-bp-make session :exception
 						:exception name))))
    
 (defun geben-set-breakpoint-conditional (expr fileuri &optional lineno hit-value)
@@ -374,7 +374,7 @@ hit-value interactively."
       (setq hit-value current-prefix-arg))
     
     (geben-set-breakpoint-common session hit-value
-				 (geben-bp-make :conditional
+				 (geben-bp-make session :conditional
 						:expression expr
 						:fileuri fileuri
 						:lineno (and (stringp lineno)
@@ -397,7 +397,7 @@ hit-value interactively."
 			      'geben-set-breakpoint-condition-history))
       (setq hit-value current-prefix-arg))
     (geben-set-breakpoint-common session hit-value
-				 (geben-bp-make :watch
+				 (geben-bp-make session :watch
 						:expression expr))))
 
 (defun geben-unset-breakpoint-line ()

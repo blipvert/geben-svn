@@ -1,6 +1,10 @@
 (require 'cl)
 (require 'geben-util)
 
+;;==============================================================
+;; DBGp related utilities
+;;==============================================================
+
 (defmacro* geben-dbgp-sequence (cmd &rest callback)
   (declare (indent 1))
   (list 'progn

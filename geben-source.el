@@ -1,12 +1,13 @@
-;;--------------------------------------------------------------
-;; source hash
-;;--------------------------------------------------------------
-
 (require 'cl)
 (require 'geben-common)
+(require 'geben-project)
 (require 'geben-session)
 (require 'geben-cmd)
 (require 'geben-dbgp)
+
+;;==============================================================
+;; source
+;;==============================================================
 
 ;; file hooks
 
@@ -25,6 +26,10 @@ debugging is finished.
 If the value is nil, the files left in buffers."
   :group 'geben
   :type 'boolean)
+
+;;--------------------------------------------------------------
+;; source hash
+;;--------------------------------------------------------------
 
 (defmacro geben-source-make (fileuri local-path)
   "Create a new source object.
@@ -163,7 +168,8 @@ A source object forms a property list with three properties
   (block geben-session-souce-fileuri
     (maphash (lambda (fileuri path)
 	       (and (equal local-path path)
-		    (return-from geben-session-souce-fileuri fileuri))))))
+		    (return-from geben-session-souce-fileuri fileuri)))
+	     (geben-session-source session))))
 
 (defsubst geben-session-source-content-coding-system (session content)
   "Guess a coding-system for the CONTENT."

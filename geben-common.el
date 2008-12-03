@@ -70,7 +70,6 @@
 
 (eval-and-compile
   (require 'cl)
-  (load-library "cl-macs")
   (require 'xml)
   (require 'tree-widget)
   (require 'dbgp))

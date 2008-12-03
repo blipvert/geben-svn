@@ -1,12 +1,12 @@
-;;--------------------------------------------------------------
-;; redirect
-;;--------------------------------------------------------------
-
 (require 'cl)
 (require 'geben-common)
 (require 'geben-session)
 (require 'geben-dbgp)
 (require 'geben-cmd)
+
+;;==============================================================
+;; redirect
+;;==============================================================
 
 (defconst geben-redirect-combine-buffer-name "*GEBEN<%s> output*"
   "Name for the debuggee script's STDOUT and STDERR redirection buffer.")
@@ -38,8 +38,10 @@
     (when bufname
       (or (get-buffer bufname)
 	  (with-current-buffer (get-buffer-create bufname)
-	    (setq buffer-undo-list t)
-	    (run-hook-with-args 'geben-dbgp-redirect-buffer-init-hook (current-buffer))
+	    (unless (local-variable-p 'geben-dynamic-property-buffer-p)
+	      (set (make-local-variable geben-dynamic-property-buffer-p) t)
+	      (setq buffer-undo-list t)
+	      (run-hook-with-args 'geben-dbgp-redirect-buffer-init-hook (current-buffer)))
 	    (current-buffer))))))
   
 (defun geben-session-redirect-buffer-name (session type)
@@ -99,7 +101,8 @@
 		     content)
 		   (geben-redirect-coding-system (geben-session-redirect session)))))
 	(goto-char (or save-pos
-		       (point-max)))))))
+		       (point-max))))
+      (geben-dbgp-display-window buf))))
 
 (defun geben-dbgp-command-stdout (session mode)
   "Send `stdout' command."

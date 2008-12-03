@@ -1,9 +1,9 @@
 (require 'geben-dbgp)
 (require 'geben-source)
 
-;;--------------------------------------------------------------
+;;==============================================================
 ;; DBGp connected session initialization
-;;--------------------------------------------------------------
+;;==============================================================
 
 (defun geben-dbgp-init-fetch-entry-source (session)
   "Fetch the content of the entry source file."

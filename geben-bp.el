@@ -1,7 +1,3 @@
-;;==============================================================
-;; breakpoints
-;;==============================================================
-
 (require 'cl)
 (require 'geben-common)
 (require 'geben-util)
@@ -10,6 +6,10 @@
 (require 'geben-source)
 (require 'geben-cursor)
 (require 'geben-dbgp)
+
+;;==============================================================
+;; breakpoints
+;;==============================================================
 
 (defstruct (geben-breakpoint
 	    (:constructor nil)
@@ -632,7 +632,7 @@ the file."
     (when expression
       (setq expression (base64-decode-string expression)))
     (geben-session-bp-add session
-			  (setq bp (geben-bp-make type
+			  (setq bp (geben-bp-make session type
 						  :id id
 						  :fileuri fileuri
 						  :lineno lineno

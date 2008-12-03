@@ -41,8 +41,9 @@
 
 (eval-and-compile
   (require 'cl)
-  (require 'comint)
   (require 'xml))
+
+(require 'comint)
 
 ;;--------------------------------------------------------------
 ;; customization

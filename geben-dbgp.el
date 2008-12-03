@@ -1,12 +1,12 @@
-;;--------------------------------------------------------------
-;; DBGp protocol handler
-;;--------------------------------------------------------------
-
 (require 'geben-common)
 (require 'geben-session)
 (require 'geben-dbgp-util)
 (require 'geben-session)
 (require 'geben-cmd)
+
+;;==============================================================
+;; DBGp protocol handler
+;;==============================================================
 
 (defsubst geben-dbgp-tid-read (msg)
   "Get a transaction id of MSG."
