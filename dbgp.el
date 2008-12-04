@@ -736,7 +736,8 @@ takes over the filter."
       (if dbgp-filter-defer-flag
 	  (setq dbgp-filter-input-list
 		(append dbgp-filter-input-list (list string)))
-	(let ((eobp (eobp)))
+	(let ((eobp (eobp))
+	      (process-window (get-buffer-window (current-buffer))))
 	  (save-excursion
 	    (save-restriction
 	      (widen)
@@ -746,8 +747,11 @@ takes over the filter."
 		       'front-sticky t
 		       'font-lock-face 'comint-highlight-input))
 	      (set-marker (process-mark proc) (point))))
-	  (and eobp
-	       (goto-char (point-max)))))))
+	  (when eobp
+	    (if process-window
+		(with-selected-window process-window
+		  (goto-char (point-max)))
+	      (goto-char (point-max))))))))
   (comint-send-string proc (concat string "\0")))
 
 (defun dbgp-session-filter (proc string)

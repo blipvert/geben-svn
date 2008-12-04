@@ -75,7 +75,7 @@ will be displayed in a window."
 					 (list
 					  '(margin left-margin)
 					  (propertize "=>"
-						      'face 'geben-dbgp-arrow-face))))))
+						      'face 'geben-cursor-arrow-face))))))
 	    (set-window-point (get-buffer-window buf) pos)))))))
 
 (provide 'geben-cursor)
