@@ -5,6 +5,7 @@
 (require 'geben-bp)
 (require 'geben-backtrace)
 (require 'geben-redirect)
+(require 'geben-context)
 
 ;;==============================================================
 ;;  geben-mode
@@ -494,6 +495,6 @@ from \`redirect', \`intercept' and \`disabled'."
 			 (string-to-number (read-string "Depth: " "0"))))
 		      (t nil))))
   (geben-with-current-session session
-    (geben-dbgp-context-display session (or depth 0))))
+    (geben-context-display session (or depth 0))))
 
 (provide 'geben-mode)

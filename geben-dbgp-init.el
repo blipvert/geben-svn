@@ -1,5 +1,8 @@
 (require 'geben-dbgp)
 (require 'geben-source)
+(require 'geben-backtrace)
+(require 'geben-bp)
+(require 'geben-context)
 
 ;;==============================================================
 ;; DBGp connected session initialization
@@ -102,11 +105,15 @@ of the function is passed to feature_set DBGp command."
 			   (cons "-n" feature)
 			   (cons "-v" (format "%S" (eval value)))))
 
-(add-hook 'geben-dbgp-init-hook 'geben-dbgp-init-fetch-entry-source t)
-(add-hook 'geben-dbgp-init-hook 'geben-dbgp-feature-init t)
-(add-hook 'geben-dbgp-init-hook 'geben-dbgp-redirect-init t)
-;;(add-hook 'geben-dbgp-init-hook 'geben-dbgp-command-context-names t)
-;;(add-hook 'geben-dbgp-init-hook 'geben-dbgp-breakpoint-restore t)
-(add-hook 'geben-dbgp-init-hook 'geben-dbgp-init-proceed-to-first-line t)
+(add-hook 'geben-dbgp-init-hook #'geben-dbgp-init-fetch-entry-source t)
+(add-hook 'geben-dbgp-init-hook #'geben-dbgp-feature-init t)
+(add-hook 'geben-dbgp-init-hook #'geben-dbgp-redirect-init t)
+(add-hook 'geben-dbgp-init-hook #'geben-dbgp-command-context-names t)
+(add-hook 'geben-dbgp-init-hook #'geben-dbgp-breakpoint-restore t)
+(add-hook 'geben-dbgp-init-hook #'geben-dbgp-init-proceed-to-first-line t)
+
+(add-hook 'geben-dbgp-continuous-command-hook #'geben-dbgp-stack-update)
+(add-hook 'geben-dbgp-continuous-command-hook #'geben-dbgp-breakpoint-list-refresh)
+(add-hook 'geben-dbgp-stack-update-hook #'geben-context-display)
 
 (provide 'geben-dbgp-init)

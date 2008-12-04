@@ -26,6 +26,7 @@ GEBEN-MODULES	= \
 	geben-source.el \
 	geben-cursor.el \
 	geben-bp.el \
+	geben-context.el \
 	geben-backtrace.el \
 	geben-redirect.el \
 	geben-dbgp-start.el \

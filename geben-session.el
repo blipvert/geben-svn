@@ -120,8 +120,11 @@ Each function is invoked with one argument, SESSION"
 			    (dbgp-ip-get proc)
 			    (dbgp-port-get (dbgp-listener-get proc)))))))
 
-(defsubst geben-session-buffer-get (session format-string)
+(defsubst geben-session-buffer (session format-string)
   (get-buffer-create (geben-session-buffer-name session format-string)))
+
+(defsubst geben-session-buffer-get (session format-string)
+  (get-buffer (geben-session-buffer-name session format-string)))
 
 (defsubst geben-session-buffer-live-p (session format-string)
   (buffer-live-p (get-buffer (geben-session-buffer-name session format-string))))
@@ -130,10 +133,7 @@ Each function is invoked with one argument, SESSION"
   (let ((buf (get-buffer (geben-session-buffer-name session format-string))))
     (and buf
 	 (buffer-live-p buf)
-	 (block window-found
-	   (walk-windows (lambda (window)
-			   (if (eq buf (window-buffer window))
-			       (return-from window-found t))))))))
+	 (get-buffer-window buf))))
 
 ;; temporary directory
 

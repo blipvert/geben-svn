@@ -29,10 +29,9 @@
   :type 'hook)
 
 (defun geben-backtrace-buffer (session)
-  (let ((buf (get-buffer-create (geben-session-buffer-get session geben-backtrace-buffer-name))))
-    (unless (eq 'geben-backtrace-mode major-mode)
-      (with-current-buffer buf
-	(geben-backtrace-mode session)))
+  (let ((buf (get-buffer-create (geben-session-buffer session geben-backtrace-buffer-name))))
+    (with-current-buffer buf
+      (geben-backtrace-mode session))
     buf))
 
 (defun geben-backtrace (session)
@@ -153,8 +152,5 @@ The buffer commands are:
 	       (geben-session-cursor-update session fileuri lineno)))
 	(run-hook-with-args 'geben-dbgp-stack-update-hook
 			    session 0)))))
-
-(add-hook 'geben-dbgp-continuous-command-hook
-	  'geben-dbgp-stack-update)
 
 (provide 'geben-backtrace)

@@ -405,7 +405,7 @@ Key mapping and other information is described its help page."
 	  (plist-put bp :hit-value (string-to-number (xml-get-attribute msg-bp 'hit_value))))))))
 
 (defun geben-breakpoint-list-display (session)
-  (let ((buf (geben-session-buffer-get session geben-breakpoint-list-buffer-name))
+  (let ((buf (geben-session-buffer session geben-breakpoint-list-buffer-name))
 	(breakpoints (geben-breakpoint-list (geben-session-bp session)))
 	pos)
     (with-current-buffer buf
@@ -690,9 +690,5 @@ the file."
 
 (defun geben-dbgp-breakpoint-list-refresh (session)
   (geben-breakpoint-list-refresh))
-  
-(add-hook 'geben-dbgp-continuous-command-hook
-	  #'geben-dbgp-breakpoint-list-refresh)
-
   
 (provide 'geben-bp)
