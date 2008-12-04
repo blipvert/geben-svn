@@ -49,13 +49,16 @@
   tid  ; transaction id to which the current context variables belong.
   variables			;
   expanded-variables		; context variables in expanded state.
-  where
-  depth
+  (depth 0)
   )
 
 (defvar geben-context-where "")
 (defvar geben-context-loading nil)
 (defvar geben-context-property-tree-fill-children-hook 'geben-context-tree-children-fill)
+
+(defun geben-session-context-init (session)
+  (setf (geben-session-context session) (geben-context-make)))
+(add-hook 'geben-session-enter-hook #'geben-session-context-init)
 
 ;; context list buffer
 
@@ -364,7 +367,7 @@ After fetching it calls CALLBACK function."
 	  (buf (geben-session-context-buffer-get session)))
       (when (and (buffer-live-p buf)
 		 (eq tid-save (geben-session-context-tid session)))
-	(with-current-buffer 
+	(with-current-buffer buf
 	    (setq geben-context-loading (not completed)))
 	(if completed
 	    (geben-context-property-tree-open tree)
@@ -406,16 +409,22 @@ After fetching it calls CALLBACK function."
 		   tree-prop)
 	       (cddr property)))))
 
-(defun geben-context-display (session depth)
+(defun geben-context-list-refresh (session depth &optional force)
+  (when (and (geben-session-active-p session)
+	     (or force
+		 (geben-session-context-buffer-visible-p session)))
+    (geben-context-list-display session depth)))
+  
+(defun geben-context-list-display (session depth)
   "Display context variables in the context buffer."
   (unless (geben-session-active-p session)
     (error "GEBEN is out of debugging session."))
   (when (or (< depth 0)
 	    (< (length (geben-session-stack session)) (1+ depth)))
     (error "GEBEN context display: invalid depth: %S" depth))
-  (setf (geben-context-depth session) depth)
+  (setf (geben-context-depth (geben-session-context session)) depth)
   (let ((buf (geben-session-context-buffer session)))
-    (with-current-buffer
+    (with-current-buffer buf
 	(setq geben-context-where
 	      (xml-get-attribute (nth depth (geben-session-stack session))
 				 'where)))
@@ -441,7 +450,7 @@ After fetching it calls CALLBACK function."
     (define-key map "S-\t" 'widget-backward)
     ;;(define-key map "\C-m" 'geben-context-mode-expand)
     ;;(define-key map "e" 'geben-context-mode-edit)
-    (define-key map "r" 'geben-context-refresh)
+    (define-key map "r" 'geben-context-mode-refresh)
     (define-key map "q" 'geben-quit-window)
     (define-key map "p" 'widget-backward)
     (define-key map "n" 'widget-forward)
@@ -480,14 +489,13 @@ The buffer commands are:
     (setq buffer-read-only t))
   (set (make-local-variable 'geben-current-session) session))
 
-(defun geben-context-refresh (&optional force)
+(defun geben-context-mode-refresh (&optional force)
   "Refresh the context buffer."
   (interactive)
   (geben-with-current-session session
-    (when (or force
-	      (geben-session-context-buffer-visible-p session))
-      (geben-context-display session
-			     (geben-context-depth (geben-session-context session))))))
+    (geben-context-list-refresh session
+				(geben-session-context-depth session)
+				force)))
 
 (defun geben-context-mode-help ()
   "Display description and key bindings of `geben-context-mode'."
