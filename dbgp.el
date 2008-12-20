@@ -233,8 +233,9 @@ The session process is alive until the session is disconnected.
 			session process.
 ")
 
-(defvar dbgp-proxy-address-history nil)
 (defvar dbgp-listener-port-history nil)
+(defvar dbgp-proxy-address-history nil)
+(defvar dbgp-proxy-port-history nil)
 (defvar dbgp-proxy-idekey-history nil)
 
 ;;--------------------------------------------------------------
@@ -325,6 +326,7 @@ See `read-from-minibuffer' for details of HISTORY argument."
 		  (dbgp-read-integer (format "Listen port(default %s): " port-default)
 				     port-default 'dbgp-listener-port-history))))
   (let ((result (dbgp-exec port
+			   :session-accept 'dbgp-default-session-accept-p
 			   :session-init 'dbgp-default-session-init
 			   :session-filter 'dbgp-default-session-filter
 			   :session-sentinel 'dbgp-default-session-sentinel)))
@@ -400,12 +402,13 @@ associating with the IDEKEY."
 		(let ((default (or (car dbgp-proxy-address-history) "localhost")))
 		  (dbgp-read-string (format "Proxy address (default %s): " default)
 				    nil 'dbgp-proxy-address-history default))
-		(let ((default (or (car dbgp-listener-port-history) 9001)))
+		(let ((default (or (car dbgp-proxy-port-history) 9001)))
 		  (dbgp-read-integer (format "Proxy port (default %d): " default)
-				     default 'dbgp-listener-port-history))
+				     default 'dbgp-proxy-port-history))
 		(dbgp-read-string "IDE key: " nil 'dbgp-proxy-idekey-history)
 		(not (memq (read-char "Multi session(Y/n): ") '(?N ?n)))))
   (let ((result (dbgp-proxy-register-exec proxy-ip-or-addr proxy-port idekey multi-session-p
+					  :session-accept 'dbgp-default-session-accept-p
 					  :session-init 'dbgp-default-session-init
 					  :session-filter 'dbgp-default-session-filter
 					  :session-sentinel 'dbgp-default-session-sentinel)))
@@ -668,7 +671,7 @@ takes over the filter."
 	;; refuse this session
 	(set-process-filter proc nil)
 	(set-process-sentinel proc nil)
-	(process-send-string proc "stop -i 1\0")
+	(process-send-string proc "run -i 1\0")
 	(dotimes (i 50)
 	  (and (eq 'open (process-status proc))
 	       (sleep-for 0 1)))
@@ -722,12 +725,9 @@ takes over the filter."
 
 (defun dbgp-session-accept-p (proc)
   "Determine whether PROC should be accepted to be a new session."
-  (if (functionp (dbgp-plist-get proc :session-accept))
-      (funcall (dbgp-plist-get proc :session-accept) proc)
-    (and dbgp-sessions
-	 (if (dbgp-proxy-p proc)
-	     (plist-get (dbgp-proxy-get proc) :multi-session)
-	   (dbgp-plist-get proc :multi-session)))))
+  (let ((accept-p (dbgp-plist-get proc :session-accept)))
+    (or (not accept-p)
+	(funcall accept-p proc))))
 
 (defun dbgp-session-send-string (proc string &optional echo-p)
   "Send a DBGp protocol STRING to PROC."
@@ -865,6 +865,13 @@ takes over the filter."
 ;;--------------------------------------------------------------
 ;; default session initializer, filter and sentinel
 ;;--------------------------------------------------------------
+
+(defun dbgp-default-session-accept-p (proc)
+  "Determine whether PROC should be accepted to be a new session."
+  (or (not dbgp-sessions)
+      (if (dbgp-proxy-p proc)
+	  (plist-get (dbgp-proxy-get proc) :multi-session)
+	(dbgp-plist-get proc :multi-session))))
 
 (defun dbgp-default-session-init (proc)
   (with-current-buffer (process-buffer proc)

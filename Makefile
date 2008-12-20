@@ -19,13 +19,13 @@ GEBEN-MODULES	= \
 	geben-common.el \
 	geben-util.el \
 	geben-dbgp-util.el \
-	geben-project.el \
+	geben-storage.el \
 	geben-session.el \
 	geben-cmd.el \
 	geben-dbgp.el \
 	geben-source.el \
 	geben-cursor.el \
-	geben-bp.el \
+	geben-breakpoint.el \
 	geben-context.el \
 	geben-backtrace.el \
 	geben-redirect.el \

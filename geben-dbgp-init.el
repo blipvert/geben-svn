@@ -1,7 +1,7 @@
 (require 'geben-dbgp)
 (require 'geben-source)
 (require 'geben-backtrace)
-(require 'geben-bp)
+(require 'geben-breakpoint)
 (require 'geben-context)
 
 ;;==============================================================

@@ -97,32 +97,57 @@ debugging is finished."
        (equal (plist-get lhs :expression)
 	      (plist-get rhs :expression))))
 
+;; session storage
+
+(defun geben-session-breakpoint-storage-add (session bp)
+  (let* ((storage (geben-session-storage session))
+	 (list (plist-get storage :bp)))
+    (unless (find bp list :test #'geben-bp=)
+      (let ((bp-copy (copy-sequence bp)))
+	(plist-put bp-copy :overlay nil)
+	(if list
+	    (nconc list (list bp-copy))
+	  (plist-put storage :bp (list bp-copy)))))))
+
+(defun geben-session-breakpoint-storage-remove (session bp)
+  (let* ((storage (geben-session-storage session))
+	 (list (plist-get storage :bp)))
+    (when (find bp list :test #'geben-bp=)
+      (delete* bp list :test #'geben-bp=))))
+
+(defun geben-session-breakpoint-storage-restore (session)
+  (let ((storage (geben-session-storage session))
+	(breakpoint (geben-session-breakpoint session)))
+    (setf (geben-breakpoint-list breakpoint)
+	  (plist-get storage :bp))))
+
 ;; session
 
-(defun geben-session-bp-add (session bp)
-  "Add a breakpoint BP to `(geben-breakpoint-list (geben-session-bp session))'.
-This function removes same breakpoints as BP from `(geben-breakpoint-list (geben-session-bp session))'
-before proceeding."
-  (geben-session-bp-remove session bp)
-  (let* ((breakpoint (geben-session-bp session))
-	 (list (geben-breakpoint-list breakpoint)))
-    (if list
-	(nconc list (list bp))
-      (setf (geben-breakpoint-list breakpoint) (list bp)))))
+(defun geben-session-breakpoint-add (session bp)
+  "Add a breakpoint BP to session's breakpoint list."
+  (unless (geben-session-breakpoint-find session bp)
+    (let* ((breakpoint (geben-session-breakpoint session))
+	   (list (geben-breakpoint-list breakpoint)))
+      (if list
+	  (nconc list (list bp))
+	(setf (geben-breakpoint-list breakpoint) (list bp))))
+    (geben-session-breakpoint-storage-add session bp)))
 
-(defun geben-session-bp-remove (session id-or-obj)
+(defun geben-session-breakpoint-remove (session id-or-obj)
   "Remove breakpoints having specific breakpoint id or same meaning objects."
-  (setf (geben-breakpoint-list (geben-session-bp session))
+  (setf (geben-breakpoint-list (geben-session-breakpoint session))
 	(remove-if (if (stringp id-or-obj)
 		       (lambda (bp)
 			 (when (string= (plist-get bp :id) id-or-obj)
+			   (geben-session-breakpoint-storage-remove session bp)
 			   (geben-bp-finalize bp)))
 		     (lambda (bp)
 		       (when (geben-bp= id-or-obj bp)
+			 (geben-session-breakpoint-storage-remove session bp)
 			 (geben-bp-finalize bp))))
-		   (geben-breakpoint-list (geben-session-bp session)))))
+		   (geben-breakpoint-list (geben-session-breakpoint session)))))
 
-(defun geben-session-bp-find (session id-or-obj)
+(defun geben-session-breakpoint-find (session id-or-obj)
   "Find a breakpoint.
 id-or-obj should be either a breakpoint id or a breakpoint object."
   (find-if 
@@ -131,31 +156,35 @@ id-or-obj should be either a breakpoint id or a breakpoint object."
 	 (string= (plist-get bp :id) id-or-obj))
      (lambda (bp)
        (geben-bp= id-or-obj bp)))
-   (geben-breakpoint-list (geben-session-bp session))))
+   (geben-breakpoint-list (geben-session-breakpoint session))))
   
 ;; dbgp
 
 (defun geben-dbgp-breakpoint-restore (session)
   "Restore breakpoints against new DBGp session."
-  (let (overlay)
-    (mapc (lambda (bp)
-	    (plist-put bp :id nil)
-	    ;; User may edit code since previous debugging session
-	    ;; so that lineno breakpoints set before may moved.
-	    ;; The followings try to adjust breakpoint line to
-	    ;; nearly what user expect.
-	    (if (and (setq overlay (plist-get bp :overlay))
-		     (overlayp overlay)
-		     (eq (overlay-buffer overlay)
-			 (find-buffer-visiting (or (plist-get bp :local-path)
-						   ""))))
-		(with-current-buffer (overlay-buffer overlay)
-		  (save-excursion
-		    (plist-put bp :lineno (progn
-					    (goto-char (overlay-start overlay))
-					    (geben-what-line))))))
-	    (geben-dbgp-command-breakpoint-set session bp))
-	  (geben-breakpoint-list (geben-session-bp session)))))
+  (let ((breakpoints (geben-breakpoint-list (geben-session-breakpoint session)))
+	overlay)
+    (setf (geben-breakpoint-list (geben-session-breakpoint session)) nil)
+    (dolist (bp breakpoints)
+      ;; User may edit code since previous debugging session
+      ;; so that lineno breakpoints set before may moved.
+      ;; The followings try to adjust breakpoint line to
+      ;; nearly what user expect.
+      (if (and (setq overlay (plist-get bp :overlay))
+	       (overlayp overlay)
+	       (overlay-livep overlay)
+	       (eq (overlay-buffer overlay)
+		   (find-buffer-visiting (or (plist-get bp :local-path)
+					     ""))))
+	  (with-current-buffer (overlay-buffer overlay)
+	    (save-excursion
+	      (plist-put bp :lineno (progn
+				      (goto-char (overlay-start overlay))
+				      (geben-what-line))))))
+      (geben-dbgp-sequence-bind (bp)
+	(geben-dbgp-command-breakpoint-set session bp)
+	(lambda (session cmd msg err)
+	  (geben-bp-finalize bp))))))
 
 ;; breakpoint list
 
@@ -308,11 +337,11 @@ The buffer commands are:
 		  (lambda (session cmd msg err)
 		    ;; remove a stray breakpoint from hash table.
 		    (when err
-		      (geben-session-bp-remove session bid))))
-	      (setf (geben-breakpoint-list (geben-session-bp session))
+		      (geben-session-breakpoint-remove session bid))))
+	      (setf (geben-breakpoint-list (geben-session-breakpoint session))
 		    (delete-if (lambda (bp1)
 				 (geben-bp= bp bp1))
-			       (geben-breakpoint-list (geben-session-bp session)))))))
+			       (geben-breakpoint-list (geben-session-breakpoint session)))))))
 	(when candidates
 	  (geben-breakpoint-list t))))))
 
@@ -365,7 +394,7 @@ Key mapping and other information is described its help page."
   (unless err
     (dolist (msg-bp (xml-get-children msg 'breakpoint))
       (let* ((id (xml-get-attribute-or-nil msg-bp 'id))
-	     (bp (geben-session-bp-find session id)))
+	     (bp (geben-session-breakpoint-find session id)))
 	(unless bp
 	  (let* ((type (intern-soft (concat ":" (xml-get-attribute msg-bp 'type))))
 		 (fileuri (xml-get-attribute-or-nil msg-bp 'filename))
@@ -387,7 +416,7 @@ Key mapping and other information is described its help page."
 	      (setq function (format "%s::%s" (or function "") class)))
 	    (when expression
 	      (setq expression (base64-decode-string expression)))
-	    (geben-session-bp-add
+	    (geben-session-breakpoint-add
 	     session
 	     (setq bp (geben-bp-make session type
 				     :id id
@@ -406,7 +435,7 @@ Key mapping and other information is described its help page."
 
 (defun geben-breakpoint-list-display (session)
   (let ((buf (geben-session-buffer session geben-breakpoint-list-buffer-name))
-	(breakpoints (geben-breakpoint-list (geben-session-bp session)))
+	(breakpoints (geben-breakpoint-list (geben-session-breakpoint session)))
 	pos)
     (with-current-buffer buf
       (geben-breakpoint-list-mode session)
@@ -492,7 +521,7 @@ Key mapping and other information is described its help page."
 	    (and (overlayp overlay)
 		 (overlay-livep overlay)
 		 (overlay-put overlay 'face nil))))
-	(geben-breakpoint-list (geben-session-bp session))))
+	(geben-breakpoint-list (geben-session-breakpoint session))))
 
 (defun geben-bp-overlay-modified (overlay afterp beg end &optional len)
   "A callback function invoked when inside of an overlay is modified.
@@ -539,18 +568,19 @@ the file."
 	       (eq buf (find-buffer-visiting (or (plist-get bp :local-path)
 						 "")))
 	       (geben-bp-overlay-setup bp)))
-	(geben-breakpoint-list (geben-session-bp session))))
+	(geben-breakpoint-list (geben-session-breakpoint session))))
 
-(defun geben-session-bp-init (session)
-  (setf (geben-session-bp session) (geben-breakpoint-make)))
+(defun geben-session-breakpoint-init (session)
+  (setf (geben-session-breakpoint session) (geben-breakpoint-make))
+  (geben-session-breakpoint-storage-restore session))
 
-(add-hook 'geben-session-enter-hook #'geben-session-bp-init)
+(add-hook 'geben-session-enter-hook #'geben-session-breakpoint-init)
 
-(defun geben-session-bp-release (session)
+(defun geben-session-breakpoint-release (session)
   (when geben-show-breakpoints-debugging-only
     (geben-bp-overlay-hide session)))
 
-(add-hook 'geben-session-exit-hook #'geben-session-bp-release)
+(add-hook 'geben-session-exit-hook #'geben-session-breakpoint-release)
 
 (defun geben-dbgp-breakpoint-store-types (session cmd msg err)
   (when (equal "1" (xml-get-attribute msg 'supported))
@@ -569,15 +599,17 @@ the file."
 	;; they don't return breakpoint types correctly.
 	;; To them put all of types to the list.
 	(setq types '(:line :call :return :exception :conditional :watch)))
-      (setf (geben-breakpoint-types (geben-session-bp session)) types))))
+      (setf (geben-breakpoint-types (geben-session-breakpoint session)) types))))
+
+(add-hook 'geben-source-visit-hook #'geben-bp-overlay-restore)
 
 ;;; breakpoint_set
 
 (defun geben-dbgp-command-breakpoint-set (session bp)
   "Send \`breakpoint_set\' command."
   (if (not (geben-session-active-p session))
-      (geben-session-bp-add session bp)
-    (let ((obp (geben-session-bp-find session bp)))
+      (geben-session-breakpoint-add session bp)
+    (let ((obp (geben-session-breakpoint-find session bp)))
       (if (and obp
 	       (plist-get obp :id))
 	  (geben-dbgp-send-command session "breakpoint_update"
@@ -636,7 +668,7 @@ the file."
 	 bp)
     (when expression
       (setq expression (base64-decode-string expression)))
-    (geben-session-bp-add session
+    (geben-session-breakpoint-add session
 			  (setq bp (geben-bp-make session type
 						  :id id
 						  :fileuri fileuri
@@ -654,7 +686,7 @@ the file."
 (defun geben-dbgp-response-breakpoint-update (session cmd msg)
   "A response message handler for `breakpoint_update' command."
   (let* ((id (geben-cmd-param-get cmd "-d"))
-	 (bp (geben-session-bp-find session id)))
+	 (bp (geben-session-breakpoint-find session id)))
     (when bp
       (plist-put bp :hit-value (geben-cmd-param-get cmd "-h"))
       (geben-breakpoint-list-refresh))))
@@ -669,15 +701,15 @@ the file."
 	(lambda (session cmd msg err)
 	  (when (dbgp-xml-get-error-message msg)
 	    ;; remove a stray breakpoint from hash table.
-	    (geben-session-bp-remove session bid)
+	    (geben-session-breakpoint-remove session bid)
 	    (geben-breakpoint-list-refresh))))
-    (geben-session-bp-remove session bid)))
+    (geben-session-breakpoint-remove session bid)))
 
 (defun geben-dbgp-response-breakpoint-remove (session cmd msg)
   "A response message handler for \`breakpoint_remove\' command."
   (let* ((id (geben-cmd-param-get cmd "-d"))
-	 (bp (geben-session-bp-find session id)))
-    (geben-session-bp-remove session id)
+	 (bp (geben-session-breakpoint-find session id)))
+    (geben-session-breakpoint-remove session id)
     (geben-breakpoint-list-refresh)))
 
 (defun geben-dbgp-command-breakpoint-list (session)
@@ -691,4 +723,4 @@ the file."
 (defun geben-dbgp-breakpoint-list-refresh (session)
   (geben-breakpoint-list-refresh))
   
-(provide 'geben-bp)
+(provide 'geben-breakpoint)

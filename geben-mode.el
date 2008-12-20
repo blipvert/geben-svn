@@ -2,7 +2,7 @@
 (require 'geben-dbgp)
 (require 'geben-dbgp-util)
 (require 'geben-dbgp-start)
-(require 'geben-bp)
+(require 'geben-breakpoint)
 (require 'geben-backtrace)
 (require 'geben-redirect)
 (require 'geben-context)
@@ -88,11 +88,20 @@ The geben-mode buffer commands:
   (setq left-margin-width (if geben-mode 2 0))
   ;; when the buffer is visible in a window,
   ;; force the window to notice the margin modification
+  (set (make-local-variable 'command-error-function) #'geben-mode-read-only-handler)
   (let ((win (get-buffer-window (current-buffer))))
     (if win
 	(set-window-buffer win (current-buffer)))))
   
 (add-hook 'geben-source-visit-hook 'geben-enter-geben-mode)
+
+(defun geben-mode-read-only-handler (data context caller)
+  (if (eq 'buffer-read-only (car data))
+      (let* ((prompt "The buffer is under debug mode. Want to open the original file? (y/N): ")
+	     (open-p (memq (read-char prompt) '(?Y ?y))))
+	(if open-p t nil))
+    (message (error-message-string data))
+    (beep)))
 
 (defun geben-enter-geben-mode (session buf)
   (with-current-buffer buf
@@ -195,7 +204,7 @@ hit-value interactively.
 			      (mapcar
 			       (lambda (x)
 				 (if (member (car x)
-					     (geben-breakpoint-types (geben-session-bp session)))
+					     (geben-breakpoint-types (geben-session-breakpoint session)))
 				     x))
 			       '((:line . "l)Line")
 				 (:call . "c)Call")
@@ -419,7 +428,7 @@ hit-value interactively."
 			  (and (eq :line (plist-get bp :type))
 			       (eq lineno (plist-get bp :lineno))
 			       (equal fileuri (plist-get bp :fileuri))))
-			(geben-breakpoint-list (geben-session-bp session))))
+			(geben-breakpoint-list (geben-session-breakpoint session))))
 	   (bid (and bp (plist-get bp :id))))
       (if bid
 	  (geben-dbgp-command-breakpoint-remove session bid)))))

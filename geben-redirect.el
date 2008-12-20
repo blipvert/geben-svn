@@ -29,7 +29,14 @@
   :type 'hook)
 
 (defun geben-session-redirect-init (session)
-  (setf (geben-session-redirect session) (geben-redirect-make)))
+  (setf (geben-session-redirect session) (geben-redirect-make))
+  (dolist (type '(:stdout :stderr))
+    (let ((buf (get-buffer (geben-session-redirect-buffer-name session type))))
+      (when (buffer-live-p buf)
+	(with-current-buffer buf
+	  (let ((inhibit-read-only t)
+		(inhibit-modification-hooks t))
+	    (erase-buffer)))))))
 
 (add-hook 'geben-session-enter-hook #'geben-session-redirect-init)
 
@@ -39,7 +46,7 @@
       (or (get-buffer bufname)
 	  (with-current-buffer (get-buffer-create bufname)
 	    (unless (local-variable-p 'geben-dynamic-property-buffer-p)
-	      (set (make-local-variable geben-dynamic-property-buffer-p) t)
+	      (set (make-local-variable 'geben-dynamic-property-buffer-p) t)
 	      (setq buffer-undo-list t)
 	      (run-hook-with-args 'geben-dbgp-redirect-buffer-init-hook (current-buffer)))
 	    (current-buffer))))))

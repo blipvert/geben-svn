@@ -1,6 +1,13 @@
 (require 'cl)
 (require 'geben-common)
 
+(defcustom geben-listener-connection-points
+  '((:proxy nil :port 9000 :multi-session t)
+    (:proxy t :addr "localhost" :port 9001 :idekey "hoge" :multi-session t))
+  "DBGp listeners and DBGp proxy listeners list."
+  :group 'geben)
+
+(defvar geben-persist-sessions nil)
 ;;==============================================================
 ;; structures
 ;;==============================================================
@@ -41,4 +48,19 @@
 (defvar geben-running-projects nil
   "")
 
+(defsubst geben-dbgp-project-listen-addresses (projects)
+  (delete-dups (mapc (lambda (project)
+		       (if (geben-proxy-projext-p project)
+			   (list :proxy
+				 (geben-proxy-project-addr project)
+				 (geben-proxy-project-port project))
+			 (list :project
+			       (geben-project-listen-port project))))
+		     projects)))
+
+(defun geben-project-find (session)
+  (find-if (lambda (project)
+	     )
+	   geben-projects)
+  
 (provide 'geben-project)

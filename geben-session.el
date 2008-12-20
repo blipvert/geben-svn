@@ -1,6 +1,7 @@
 (require 'cl)
 (require 'xml)
 (require 'dbgp)
+(require 'geben-storage)
 (require 'geben-common)
 (require 'geben-util)
 
@@ -41,7 +42,7 @@ Each function is invoked with one argument, SESSION"
 	    (:constructor nil)
 	    (:constructor geben-session-make))
   "Represent a DBGp protocol connection session."
-  project
+  storage
   process
   (tid 30000)
   (state :created)
@@ -50,7 +51,7 @@ Each function is invoked with one argument, SESSION"
   language
   feature
   redirect
-  bp
+  breakpoint
   cmd
   sending-p
   source
@@ -84,14 +85,55 @@ Each function is invoked with one argument, SESSION"
 	(let ((lang (xml-get-attribute-or-nil init-msg 'language)))
 	  (and lang
 	       (intern (concat ":" (downcase lang))))))
+  (setf (geben-session-storage session) (or (geben-session-storage-find session)
+					    (geben-session-storage-create session)))
   (run-hook-with-args 'geben-session-enter-hook session))
-  
+
+(defun geben-session-storage-create (session)
+  (let* ((initmsg (geben-session-initmsg session))
+	 (process (geben-session-process session))
+	 (listener (dbgp-plist-get process :listener))
+	 (storage (if (dbgp-proxy-p process)
+		      (list :proxy t
+			    :addr (xml-get-attribute initmsg 'hostname)
+			    :idekey (xml-get-attribute initmsg 'idekey))
+		    (list :proxy nil
+			  :port (second (process-contact listener))))))
+    (nconc storage (list :language (geben-session-language session)
+			 :fileuri (xml-get-attribute initmsg 'fileuri)))
+    (add-to-list 'geben-storages storage)
+    storage))
+
+(defun geben-session-storage-find (session)
+  (unless geben-storage-loaded
+    (geben-storage-load)
+    (setq geben-storage-loaded t))
+  (let* ((initmsg (geben-session-initmsg session))
+	 (addr (xml-get-attribute initmsg 'hostname))
+	 (fileuri (xml-get-attribute initmsg 'fileuri))
+	 (idekey (xml-get-attribute initmsg 'idekey))
+	 (process (geben-session-process session))
+	 (listener (dbgp-plist-get process :listener))
+	 (proxy-p (dbgp-proxy-p listener))
+	 (port (second (process-contact listener))))
+    (find-if (lambda (storage)
+	       (and (eq (not proxy-p)
+			(not (plist-get storage :proxy)))
+		    (eq (geben-session-language session)
+			(plist-get storage :language))
+		    (equal fileuri (plist-get storage :fileuri))
+		    (if proxy-p
+			(and (equal addr (plist-get storage :addr))
+			     (equal idekey (plist-get storage :idekey)))
+		      (eq port (plist-get storage :port)))))
+	     geben-storages)))
+
 (defsubst geben-session-release (session)
   "Initialize a session of a process PROC."
-  (setf (geben-session-project session) nil)
   (setf (geben-session-process session) nil)
   (setf (geben-session-cursor session) nil)
   (geben-session-tempdir-remove session)
+  (geben-storage-save)
   (run-hook-with-args 'geben-session-exit-hook session))
   
 (defsubst geben-session-active-p (session)
@@ -137,20 +179,14 @@ Each function is invoked with one argument, SESSION"
 
 ;; temporary directory
 
-(defcustom geben-temporary-file-directory temporary-file-directory
-  "*Base directory path where GEBEN creates a temporary directory."
-  :group 'geben
-  :type 'directory)
-
 (defun geben-session-tempdir-setup (session)
   "Setup temporary directory."
   (let* ((proc (geben-session-process session))
-	 (topdir (file-truename geben-temporary-file-directory))
-	 (gebendir (expand-file-name "emacs-geben" topdir))
+	 (gebendir (file-truename geben-temporary-file-directory))
 	 (leafdir (format "%d" (second (process-contact proc))))
 	 (tempdir (expand-file-name leafdir gebendir)))
     (unless (file-directory-p gebendir)
-      (make-directory gebendir)
+      (make-directory gebendir t)
       (set-file-modes gebendir #o1777))
     (setf (geben-session-tempdir session) tempdir)))
 

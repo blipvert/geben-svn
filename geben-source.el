@@ -1,6 +1,5 @@
 (require 'cl)
 (require 'geben-common)
-(require 'geben-project)
 (require 'geben-session)
 (require 'geben-cmd)
 (require 'geben-dbgp)
@@ -27,9 +26,22 @@ If the value is nil, the files left in buffers."
   :group 'geben
   :type 'boolean)
 
+(defun geben-source-find-file-handler ()
+  (let* ((local-path (buffer-file-name))
+	 (session (and local-path (geben-source-find-session local-path))))
+    (if session
+	(run-hook-with-args 'geben-source-visit-hook session (current-buffer)))))
+
+(add-hook 'find-file-hook #'geben-source-find-file-handler)
+
 ;;--------------------------------------------------------------
 ;; source hash
 ;;--------------------------------------------------------------
+
+(defcustom geben-source-coding-system 'utf-8
+  "Coding system for source code retrieving remotely via the debugger engine."
+  :group 'geben
+  :type 'coding-system)
 
 (defmacro geben-source-make (fileuri local-path)
   "Create a new source object.
@@ -111,20 +123,32 @@ A source object forms a property list with three properties
 
 (defun geben-source-visit (local-path)
   "Visit to a local source code file."
-  (when (file-exists-p local-path)
-    (let* ((session (geben-source-find-session local-path))
-	   (project (and session
-			 (geben-session-project session)))
-	   (coding-system (and project
-			       (geben-abstract-project-content-coding-system project)))
-	   (buf (if coding-system
-		    (let ((coding-system-for-read coding-system)
-			  (coding-system-for-write coding-system))
-		      (find-file-noselect local-path))
-		  (find-file-noselect local-path))))
+  (let ((buf (or (find-buffer-visiting local-path)
+		 (if (file-exists-p local-path)
+		     (let* ((session (geben-source-find-session local-path))
+			    (storage (and session
+					  (geben-session-storage session)))
+			    (coding-system (or (plist-get storage :source-coding-system)
+					       geben-source-coding-system)))
+		       (if coding-system
+			   (let ((coding-system-for-read coding-system)
+				 (coding-system-for-write coding-system))
+			     (find-file-noselect local-path))
+			 (find-file-noselect local-path)))))))
+    (when buf
       (geben-dbgp-display-window buf)
-      (run-hook-with-args 'geben-source-visit-hook session buf)
       buf)))
+
+;; session storage
+
+(defun geben-session-source-storage-add (session fileuri)
+  (let* ((storage (geben-session-storage session))
+	 (list (plist-get storage :source)))
+    (if (and (string-match "^file:/" fileuri)
+	     (not (find list fileuri :test #'equal)))
+	(if list
+	    (nconc list (list fileuri))
+	  (plist-put storage :source (list fileuri))))))
 
 ;; session
 
@@ -141,7 +165,8 @@ A source object forms a property list with three properties
       (make-directory tempdir t)
       (set-file-modes tempdir #o0700)))
   (geben-session-source-write-file session local-path content)
-  (puthash fileuri (geben-source-make fileuri local-path) (geben-session-source session)))
+  (puthash fileuri (geben-source-make fileuri local-path) (geben-session-source session))
+  (geben-session-source-storage-add session fileuri))
 
 (defun geben-session-source-release (session)
   "Release source objects."
@@ -173,7 +198,8 @@ A source object forms a property list with three properties
 
 (defsubst geben-session-source-content-coding-system (session content)
   "Guess a coding-system for the CONTENT."
-  (or (geben-project-content-coding-system (geben-session-project session))
+  (or (plist-get (geben-session-storage session) :source-coding-system)
+      geben-source-coding-system
       (detect-coding-string content t)))
 
 (defun geben-session-source-write-file (session path content)
