@@ -56,7 +56,8 @@ described its help page."
     (t
      (call-interactively 'geben-end))))
 
-(defun geben-proxy (ip-or-addr port idekey multi-session-p)
+(defun geben-proxy (ip-or-addr port idekey ;;multi-session-p
+			       )
   (interactive (list
 		(let ((default (or (car dbgp-proxy-address-history)
 				   (nth 0 geben-dbgp-default-proxy)
@@ -72,8 +73,10 @@ described its help page."
 				   (nth 2 geben-dbgp-default-proxy)
 				   (nth 2 (default-value 'geben-dbgp-default-proxy)))))
 		  (dbgp-read-string "IDE key: " nil 'dbgp-proxy-idekey-history))
-		(not (memq (read-char "Multi session(Y/n): ") '(?N ?n)))))
-  (geben-dbgp-start-proxy ip-or-addr port idekey multi-session-p))
+		;;(not (memq (read-char "Multi session(Y/n): ") '(?N ?n)))
+		))
+  (geben-dbgp-start-proxy ip-or-addr port idekey ;;multi-session-p
+			  ))
   
 (defun geben-end (port)
   "Stop the DBGp listener listening to PORT."

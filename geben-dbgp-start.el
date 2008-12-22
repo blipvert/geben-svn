@@ -25,11 +25,12 @@
      (read-char (format "[port %s] %s" port (second error-sexp))
 		nil 3))))
 
-(defun geben-dbgp-start-proxy (ip-or-addr port idekey multi-session-p)
+(defun geben-dbgp-start-proxy (ip-or-addr port idekey ;;multi-session-p
+					  )
   "Create DBGp listeners at each CONNECTION-POINTS."
   (condition-case error-sexp
       (let* ((result
-	      (dbgp-proxy-register-exec ip-or-addr port idekey multi-session-p
+	      (dbgp-proxy-register-exec ip-or-addr port idekey nil ;; multi-session-p
 					:session-accept 'geben-dbgp-session-accept-p
 					:session-init 'geben-dbgp-session-init
 					:session-filter 'geben-dbgp-session-filter
@@ -49,19 +50,24 @@
   ;; accept the new session if:
   ;;  a. capable for multi sessions.
   ;;  b. not used yet; it's the first session for the connection-point.
-  (if (dbgp-proxy-p proc)
-      (let ((proxy (dbgp-plist-get proc :proxy)))
-	(or (plist-get proxy :multi-session)
-	    (not (some (lambda (session)
-			 (eq proxy (dbgp-plist-get proc :proxy)))
-		       geben-sessions))))
-    (let ((port (second (process-contact (dbgp-plist-get proc :listener)))))
-      (not (some (lambda (session)
-		   (let ((oproc (geben-session-process session)))
-		     (and oproc
-			  (not (dbgp-proxy-p oproc))
-			  (eq port (second (process-contact oproc))))))
-		 geben-sessions)))))
+  (let ((accept-p
+	 (if (dbgp-proxy-p proc)
+	     (let ((proxy (dbgp-plist-get proc :proxy)))
+	       (or (plist-get proxy :multi-session)
+		   (not (some (lambda (session)
+				(eq proxy (dbgp-plist-get proc :proxy)))
+			      geben-sessions))))
+	   (let ((port (dbgp-port-get (dbgp-listener-get proc))))
+	     (not (some (lambda (session)
+			  (let ((oproc (geben-session-process session)))
+			    (and oproc
+				 (not (dbgp-proxy-p oproc))
+				 (eq port (dbgp-port-get (dbgp-listener-get oproc))))))
+			geben-sessions))))))
+    (unless accept-p
+      (message "GEBEN: Rejected new connection from %s (Already in debugging)"
+	       (car (process-contact proc))))
+    accept-p))
 	
 (defun geben-dbgp-session-init (proc)
   "Initialize SESSION environment."

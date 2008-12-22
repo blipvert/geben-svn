@@ -60,24 +60,25 @@ will be displayed in a window."
       (let ((buf (geben-source-visit local-path))
 	    pos)
 	(when buf
-	  (ignore-errors
-	    (save-restriction
-	      (widen)
-	      (goto-line lineno)
-	      (setq pos (point))
-	      (if (overlayp overlay)
-		  (move-overlay overlay pos pos)
-		(plist-put cursor :overlay
-			   (setq overlay (make-overlay pos pos buf)))
-		(overlay-put overlay
-			     'before-string
-			     (propertize "x"
-					 'display
-					 (list
-					  '(margin left-margin)
-					  (propertize "=>"
-						      'face 'geben-cursor-arrow-face))))))
-	    (set-window-point (get-buffer-window buf) pos)))))))
+	  (with-current-buffer buf
+	    (ignore-errors
+	      (save-restriction
+		(widen)
+		(goto-line lineno)
+		(setq pos (point))
+		(if (overlayp overlay)
+		    (move-overlay overlay pos pos buf)
+		  (plist-put cursor :overlay
+			     (setq overlay (make-overlay pos pos buf)))
+		  (overlay-put overlay
+			       'before-string
+			       (propertize "x"
+					   'display
+					   (list
+					    '(margin left-margin)
+					    (propertize "=>"
+							'face 'geben-cursor-arrow-face))))))
+	      (set-window-point (get-buffer-window buf) pos))))))))
 
 (defun geben-session-cursor-file-visit-handler (session buf)
   (let ((cursor (geben-session-cursor session))

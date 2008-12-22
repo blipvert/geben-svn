@@ -105,7 +105,7 @@ to connect to DBGp listener of this address."
   "Face for displaying decoded string."
   :group 'dbgp-highlighting-faces)
 ;;--------------------------------------------------------------
-;; macro
+;; utilities
 ;;--------------------------------------------------------------
 
 (defsubst dbgp-plist-get (proc prop)
@@ -832,27 +832,26 @@ takes over the filter."
 
 (defun dbgp-session-response-to-chunk ()
   (let* ((string dbgp-filter-pending-text)
-	 (beg 0)
-	 (end (length string))
-	 (i 0)
-	 len chunks)
-    (while (< i end)
+	 (send (length string))		; string end
+	 (lbeg 0)			; line begin
+	 tbeg				; text begin
+	 tlen				; text length
+	 (i 0)				; running pointer
+	 chunks)
+    (while (< i send)
       (if (< 0 (elt string i))
 	  (incf i)
-	(setq len (string-to-number (substring string beg i)))
-	(setq i (1+ i))
-	(when (< (+ i len) end)
-	  (setq chunks (cons (substring string i (+ i len))
-			     chunks))
-	  ;; Remove chunk from `dbgp-filter-pending-text'.
-	  ;; Avoid to use `end' because `dbgp-filter-pending-text' may
-	  ;; be expanded during processing this loop. (Still I'm not sure..)
-	  (setq dbgp-filter-pending-text
-		(if (< (+ i len 1) (length dbgp-filter-pending-text))
-		    (substring dbgp-filter-pending-text (+ i len 1))
-		  nil)))
-	(setq i (+ i len 1))
-	(setq beg i)))
+	(setq tlen (string-to-number (substring string lbeg i)))
+	(setq tbeg (1+ i))
+	(setq i (+ tbeg tlen))
+	(when (< i send)
+	  (setq chunks (cons (substring string tbeg i) chunks))
+	  (incf i)
+	  (setq lbeg i))))
+    ;; Remove chunk from `dbgp-filter-pending-text'.
+    (setq dbgp-filter-pending-text
+	  (and (< lbeg i)
+	       (substring dbgp-filter-pending-text lbeg)))
     (nreverse chunks)))
 
 (defun dbgp-session-sentinel (proc string)
