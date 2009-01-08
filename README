@@ -78,8 +78,8 @@ b' Or Run: SITELISP=$HOME/path/to/install make install
 <Without GNU make command>
 a. Byte compile 'dbgp.el'.
 b. Byte compile `geben.el'.
-c. Copy `geben.elc' and entire `tree-widget' directory to any
-   directory where Emacs can find.(Or add the path to `load-path'
+c. Copy `dbgp.elc', `geben.elc' and entire `tree-widget' directory to
+   any directory where Emacs can find.(Or add the path to `load-path'
    list)
 
 <common>
