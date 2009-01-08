@@ -107,13 +107,17 @@ and call `geben-dbgp-entry' with each chunk."
 
 (defun geben-dbgp-session-sentinel (proc string)
   (when (buffer-live-p (process-buffer proc))
-    (with-current-buffer (process-buffer proc)
-      (insert "\nDisconnected.\n\n")))
+    (dbgp-session-echo-input proc "\nDisconnected.\n\n"))
   (let ((session (dbgp-plist-get proc :session)))
     (when session
       (ignore-errors
 	(geben-session-release session))
       (accept-process-output)
       (setq geben-sessions (remq session geben-sessions)))))
+
+(add-hook 'kill-emacs-hook (lambda ()
+			     (dolist (session geben-sessions)
+			       (ignore-errors
+				(geben-session-release session)))))
 
 (provide 'geben-dbgp-start)

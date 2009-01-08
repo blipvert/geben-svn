@@ -97,9 +97,12 @@ The geben-mode buffer commands:
 
 (defun geben-mode-read-only-handler (data context caller)
   (if (eq 'buffer-read-only (car data))
-      (let* ((prompt "The buffer is under debug mode. Want to open the original file? (y/N): ")
-	     (open-p (memq (read-char prompt) '(?Y ?y))))
-	(if open-p t nil))
+      (geben-with-current-session session
+	(let ((prompt "The buffer is under debug mode. Want to open the original file? (y/N): "))
+	  (if (memq (read-char prompt) '(?Y ?y))
+	      (geben-session-source-visit-original-file
+	       session
+	       (geben-session-source-fileuri session (buffer-file-name))))))
     (message (error-message-string data))
     (beep)))
 

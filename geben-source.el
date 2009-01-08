@@ -3,6 +3,8 @@
 (require 'geben-session)
 (require 'geben-cmd)
 (require 'geben-dbgp)
+(eval-when-compile
+  (require 'tramp))
 
 ;;==============================================================
 ;; source
@@ -245,4 +247,40 @@ FILEURI is a uri of the target file of a debuggee site."
     ;; haven't fetched remote source yet; fetch it.
     (geben-dbgp-command-source session fileuri)))
 
+(defcustom geben-visit-remote-file nil
+  ""
+  :group 'geben
+  :type 'function)
+
+(defun geben-session-source-visit-original-file (session fileuri)
+  (let* ((proc (geben-session-process session))
+	 (listener (dbgp-listener-get proc))
+	 (ip (dbgp-ip-get proc))
+	 (local-path (replace-regexp-in-string "^file:/*" "/" fileuri))
+	 target-path)
+    (if (member (format-network-address ip t)
+		(mapcar (lambda (addr)
+			  (format-network-address (cdr addr) t))
+			(network-interface-list)))
+	;; local file
+	(setq target-path local-path)
+      ;; remote file
+      (if (fboundp 'geben-visit-remote-file)
+	  (funcall geben-visit-remote-file session fileuri)
+	(let* ((storage (geben-session-storage session))
+	       (path-prefix (plist-get storage :tramp))
+	       (find-file-default (if path-prefix
+				      (concat path-prefix local-path)
+				    (format "/%s:%s" ip local-path))))
+	  (setq target-path (read-file-name "Find remote file: "
+					    (file-name-directory find-file-default)
+					    find-file-default t
+					    (file-name-nondirectory find-file-default)))
+	  (require 'tramp)
+	  (when (tramp-tramp-file-p target-path)
+	    (plist-put storage :tramp (replace-regexp-in-string ":[^:]+$" ":" target-path))))))
+    (and target-path
+	 (find-file target-path)
+	 (message "visited: %s" target-path))))
+  
 (provide 'geben-source)

@@ -1,6 +1,6 @@
 (require 'cl)
 
-(defcustom geben-temporary-file-directory (expand-file-name "geben" "~/emacs.d")
+(defcustom geben-temporary-file-directory (expand-file-name "geben" "~/.emacs.d")
   "*Base directory path where GEBEN creates temporary files and directories."
   :group 'geben
   :type 'directory)

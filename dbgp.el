@@ -396,7 +396,7 @@ See `read-from-minibuffer' for details of HISTORY argument."
 (defun dbgp-proxy-register (proxy-ip-or-addr proxy-port idekey multi-session-p)
   "Register a new DBGp listener to an external DBGp proxy.
 The proxy should be found at PROXY-IP-OR-ADDR / PROXY-PORT.
-This create a new DBGp listener and register it to the proxy
+This creates a new DBGp listener and register it to the proxy
 associating with the IDEKEY."
   (interactive (list
 		(let ((default (or (car dbgp-proxy-address-history) "localhost")))
@@ -731,29 +731,32 @@ takes over the filter."
 
 (defun dbgp-session-send-string (proc string &optional echo-p)
   "Send a DBGp protocol STRING to PROC."
-  (with-current-buffer (process-buffer proc)
-    (when echo-p
-      (if dbgp-filter-defer-flag
-	  (setq dbgp-filter-input-list
-		(append dbgp-filter-input-list (list string)))
-	(let ((eobp (eobp))
-	      (process-window (get-buffer-window (current-buffer))))
-	  (save-excursion
-	    (save-restriction
-	      (widen)
-	      (goto-char (process-mark proc))
-	      (insert (propertize
-		       (concat string "\n")
-		       'front-sticky t
-		       'font-lock-face 'comint-highlight-input))
-	      (set-marker (process-mark proc) (point))))
-	  (when eobp
-	    (if process-window
-		(with-selected-window process-window
-		  (goto-char (point-max)))
-	      (goto-char (point-max))))))))
+  (if echo-p
+      (dbgp-session-echo-input proc string))
   (comint-send-string proc (concat string "\0")))
 
+(defun dbgp-session-echo-input (proc string)
+  (with-current-buffer (process-buffer proc)
+    (if dbgp-filter-defer-flag
+	(setq dbgp-filter-input-list
+	      (append dbgp-filter-input-list (list string)))
+      (let ((eobp (eobp))
+	    (process-window (get-buffer-window (current-buffer))))
+	(save-excursion
+	  (save-restriction
+	    (widen)
+	    (goto-char (process-mark proc))
+	    (insert (propertize
+		     (concat string "\n")
+		     'front-sticky t
+		     'font-lock-face 'comint-highlight-input))
+	    (set-marker (process-mark proc) (point))))
+	(when eobp
+	  (if process-window
+	      (with-selected-window process-window
+		(goto-char (point-max)))
+	    (goto-char (point-max))))))))
+  
 (defun dbgp-session-filter (proc string)
   ;; Here's where the actual buffer insertion is done
   (let ((buf (process-buffer proc))
@@ -915,8 +918,8 @@ takes over the filter."
       (buffer-string))))
 
 (defun dbgp-default-session-sentinel (proc string)
-  (when (buffer-live-p (process-buffer proc))
-    (with-current-buffer (process-buffer proc)
-      (insert "\nDisconnected.\n\n"))))
+  (let ((output "\nDisconnected.\n\n"))
+    (when (buffer-live-p (process-buffer proc))
+      (dbgp-session-echo-input proc output))))
 
 (provide 'dbgp)

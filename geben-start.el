@@ -12,8 +12,15 @@
 
 ;;;###autoload
 (defun geben (&optional args)
-  "Start GEBEN, a PHP source level debugger.
-Prefixed with \\[universal-argument], GEBEN quits immediately.
+  "Start GEBEN, a DBGp protocol frontend - a script debugger.
+Variations are described below.
+
+By default, starts GEBEN listening to port `geben-dbgp-default-port'.
+Prefixed with one \\[universal-argument], asks listening port number interactively and
+starts GEBEN on the port.
+Prefixed with two \\[universal-argument]'s, starts a GEBEN proxy listener.
+Prefixed with three \\[universal-argument]'s, kills a GEBEN listener.
+Prefixed with four \\[universal-argument]'s, kills a GEBEN proxy listener.
 
 GEBEN communicates with script servers, located anywhere local or
 remote, in DBGp protocol (e.g. PHP with Xdebug extension)
@@ -28,10 +35,6 @@ to help you debugging your script with some valuable features:
 The script servers should be DBGp protocol enabled.
 Ask to your script server administrator about this setting up
 issue.
-
-The variable `geben-dbgp-command-line' is a command line to
-execute a DBGp protocol client command. GEBEN communicates with
-script servers through this command.
 
 Once you've done these setup operation correctly, run GEBEN first
 and your script on your script server second. After some
@@ -53,11 +56,39 @@ described its help page."
 					    default 'dbgp-listener-port-history))))
     (16
      (call-interactively 'geben-proxy))
+    (64
+     (call-interactively 'geben-end))
     (t
-     (call-interactively 'geben-end))))
+     (call-interactively 'geben-proxy-end))))
+
+(defun geben-end (port)
+  "Stop the DBGp listener on PORT."
+  (interactive
+   (let ((ports (remq nil
+		      (mapcar (lambda (listener)
+				(and (not (dbgp-proxy-p listener))
+				     (number-to-string (second (process-contact listener)))))
+			      dbgp-listeners))))
+     (list
+      ;; ask user for the target idekey.
+      (read (completing-read "Listener port to kill: " ports nil t
+			     (and (eq 1 (length ports))
+				  (car ports)))))))
+  (let ((listener (dbgp-listener-find port)))
+    (dbgp-listener-kill port)
+    (and (interactive-p)
+	 (message (if listener
+		      "The DBGp listener for port %d is terminated." 
+		    "DBGp listener for port %d does not exist.")
+		  port))
+    (and listener t)))
 
 (defun geben-proxy (ip-or-addr port idekey ;;multi-session-p
 			       )
+  "Start a new DBGp proxy listener.
+The DBGp proxy should be found at IP-OR-ADDR / PORT.
+This create a new DBGp listener and register it to the proxy
+associating with the IDEKEY."
   (interactive (list
 		(let ((default (or (car dbgp-proxy-address-history)
 				   (nth 0 geben-dbgp-default-proxy)
@@ -77,28 +108,7 @@ described its help page."
 		))
   (geben-dbgp-start-proxy ip-or-addr port idekey ;;multi-session-p
 			  ))
-  
-(defun geben-end (port)
-  "Stop the DBGp listener listening to PORT."
-  (interactive
-   (let ((ports (remq nil
-		      (mapcar (lambda (listener)
-				(and (or current-prefix-arg
-					 (not (dbgp-proxy-p listener)))
-				     (number-to-string (second (process-contact listener)))))
-			      dbgp-listeners))))
-     (list
-      ;; ask user for the target idekey.
-      (read (completing-read "Listener port to kill: " ports nil t
-			     (and (eq 1 (length ports))
-				  (car ports)))))))
-  (let ((listener (dbgp-listener-find port)))
-    (dbgp-listener-kill port)
-    (and (interactive-p)
-	 (message (if listener
-		      "The DBGp listener for port %d is terminated." 
-		    "DBGp listener for port %d does not exist.")
-		  port))
-    (and listener t)))
+
+(defalias 'geben-proxy-end #'dbgp-proxy-unregister)
 
 (provide 'geben)
