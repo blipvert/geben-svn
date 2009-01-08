@@ -259,9 +259,10 @@ FILEURI is a uri of the target file of a debuggee site."
 	 (local-path (replace-regexp-in-string "^file:/*" "/" fileuri))
 	 target-path)
     (if (or (equal ip "127.0.0.1")
-	    (member ip (mapcar (lambda (addr)
-				 (format-network-address (cdr addr) t))
-			       (network-interface-list))))
+	    (and (fboundp 'network-interface-list)
+		 (member ip (mapcar (lambda (addr)
+				      (format-network-address (cdr addr) t))
+				    (network-interface-list)))))
 	;; local file
 	(setq target-path local-path)
       ;; remote file
