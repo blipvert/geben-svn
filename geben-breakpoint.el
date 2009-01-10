@@ -343,7 +343,7 @@ The buffer commands are:
 				 (geben-bp= bp bp1))
 			       (geben-breakpoint-list (geben-session-breakpoint session)))))))
 	(when candidates
-	  (geben-breakpoint-list t))))))
+	  (geben-breakpoint-list-display session))))))
 
 (defun geben-breakpoint-list-mode-goto (&optional event)
   "Move to the set point of the selected breakpoint."

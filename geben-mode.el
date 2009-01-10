@@ -114,7 +114,7 @@ The geben-mode buffer commands:
 (add-hook 'geben-source-release-hook
 	  (lambda () (geben-mode 0)))
 
-(defun geben-where (session)
+(defun geben-where ()
   "Move to the current breaking point."
   (interactive)
   (geben-with-current-session session
@@ -126,6 +126,11 @@ The geben-mode buffer commands:
       (when (interactive-p)
 	(message "GEBEN is not started.")))))
 
+(defun geben-quit-window ()
+  (interactive)
+  (quit-window)
+  (geben-where))
+  
 (defun geben-mode-help ()
   "Display description and key bindings of `geben-mode'."
   (interactive)

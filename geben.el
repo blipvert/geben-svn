@@ -1476,7 +1476,7 @@ The buffer commands are:
 				 (geben-bp= bp bp1))
 			       (geben-breakpoint-list (geben-session-breakpoint session)))))))
 	(when candidates
-	  (geben-breakpoint-list t))))))
+	  (geben-breakpoint-list-display session))))))
 
 (defun geben-breakpoint-list-mode-goto (&optional event)
   "Move to the set point of the selected breakpoint."
@@ -3011,7 +3011,7 @@ The geben-mode buffer commands:
 (add-hook 'geben-source-release-hook
 	  (lambda () (geben-mode 0)))
 
-(defun geben-where (session)
+(defun geben-where ()
   "Move to the current breaking point."
   (interactive)
   (geben-with-current-session session
@@ -3023,6 +3023,11 @@ The geben-mode buffer commands:
       (when (interactive-p)
 	(message "GEBEN is not started.")))))
 
+(defun geben-quit-window ()
+  (interactive)
+  (quit-window)
+  (geben-where))
+  
 (defun geben-mode-help ()
   "Display description and key bindings of `geben-mode'."
   (interactive)

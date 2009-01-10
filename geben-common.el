@@ -1,10 +1,10 @@
 ;;; geben.el --- DBGp protocol frontend, a script debugger
-;; $Id: geben.el 59 2008-11-27 02:50:00Z fujinaka.tohru $
+;; $Id$
 ;; 
 ;; Filename: geben.el
 ;; Author: reedom <fujinaka.tohru@gmail.com>
 ;; Maintainer: reedom <fujinaka.tohru@gmail.com>
-;; Version: 0.20
+;; Version: 0.21
 ;; URL: http://code.google.com/p/geben-on-emacs/
 ;; Keywords: DBGp, debugger, PHP, Xdebug, Perl, Python, Ruby, Tcl, Komodo
 ;; Compatibility: Emacs 22.1
