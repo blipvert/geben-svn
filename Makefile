@@ -8,7 +8,7 @@ RM      = rm -f
 INSTALL = install
 
 .el.elc:
-	$(EMACS) -Q --batch --eval '(byte-compile-file "$<")'
+	$(EMACS) -Q --batch --eval "(add-to-list 'load-path \".\")" --eval '(byte-compile-file "$<")'
 
 DBGP-SRC	= dbgp.el
 GEBEN-SRC	= geben.el
