@@ -130,7 +130,7 @@ Here is an illustration on PHP debugging.
    load the script file via `TRAMP'.
 
 6. If you felt you'd debugged enough, it's time to quit GEBEN.
-   To quit GEBEN, type: C-u M-x geben
+   To quit GEBEN, type: M-x geben-end
 
 Known Issues
 ------------
