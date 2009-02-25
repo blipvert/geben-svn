@@ -186,7 +186,8 @@
 	    (list :type type
 		  :type-visiblep nil
 		  :name-formatter 'geben-context-property-format-array-name
-		  :value-face 'default))
+		  :value-face 'default
+		  :value-formatter (lambda (value) "")))
 	   ((eq type 'null)
 	    (list :type type
 		  :type-visiblep nil
@@ -413,9 +414,9 @@ After fetching it calls CALLBACK function."
   (when (and (geben-session-active-p session)
 	     (or force
 		 (geben-session-context-buffer-visible-p session)))
-    (geben-context-list-display session depth)))
+    (geben-context-list-display session depth (not force))))
   
-(defun geben-context-list-display (session depth)
+(defun geben-context-list-display (session depth &optional no-select)
   "Display context variables in the context buffer."
   (unless (geben-session-active-p session)
     (error "GEBEN is out of debugging session."))
@@ -428,11 +429,13 @@ After fetching it calls CALLBACK function."
 	(setq geben-context-where
 	      (xml-get-attribute (nth depth (geben-session-stack session))
 				 'where)))
-    (geben-dbgp-display-window buf)
+    (unless no-select
+      (geben-dbgp-display-window buf))
     (geben-context-list-fetch session
-			      (geben-lexical-bind (buf)
+			      (geben-lexical-bind (buf no-select)
 				(lambda (session)
 				  (and (buffer-live-p buf)
+				       (not no-select)
 				       (geben-dbgp-display-window buf)))))))
 
 ;;--------------------------------------------------------------

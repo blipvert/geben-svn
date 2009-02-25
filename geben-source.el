@@ -91,17 +91,17 @@ A source object forms a property list with three properties
   "Generate path string from FILEURI to store temporarily."
   (let ((local-path (geben-source-local-path-in-server session fileuri)))
     (when local-path
-      (expand-file-name (substring local-path 1)
+      (expand-file-name (substring local-path (if (string-match "^[A-Z]:" local-path) 3 1))
 			(geben-session-tempdir session)))))
 
 (defun geben-source-local-path-in-server (session fileuri)
   "Make a path string correspond to FILEURI."
   (when (string-match "^\\(file\\|https?\\):/+" fileuri)
     (let ((path (substring fileuri (1- (match-end 0)))))
-      (setq path (or (and (eq system-type 'windows-nt)
-			  (require 'url-util)
-			  (url-unhex-string path))
-		     path))
+      (require 'url-util)
+      (setq path (url-unhex-string path))
+      (when (string-match "^/[A-Z]:" path) ;; for HTTP server on Windows
+	(setq path (substring path 1)))
       (if (string= "" (file-name-nondirectory path))
 	  (expand-file-name (geben-source-default-file-name session)
 			    path)
@@ -256,7 +256,7 @@ FILEURI is a uri of the target file of a debuggee site."
   (let* ((proc (geben-session-process session))
 	 (listener (dbgp-listener-get proc))
 	 (ip (format-network-address (dbgp-ip-get proc) t))
-	 (local-path (replace-regexp-in-string "^file:/*" "/" fileuri))
+	 (local-path (geben-source-local-path-in-server session fileuri))
 	 target-path)
     (if (or (equal ip "127.0.0.1")
 	    (and (fboundp 'network-interface-list)

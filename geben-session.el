@@ -73,9 +73,6 @@ Each function is invoked with one argument, SESSION"
 
 (defsubst geben-session-init (session init-msg)
   "Initialize a session of a process PROC."
-  (let ((buf (process-buffer (geben-session-process session))))
-    (and buf
-	 (pop-to-buffer buf)))
   (geben-session-tempdir-setup session)
   (setf (geben-session-initmsg session) init-msg)
   (setf (geben-session-xdebug-p session)
