@@ -147,7 +147,7 @@ The buffer commands are:
 	(setf (geben-session-stack session) (xml-get-children msg 'stack))
 	(let* ((stack (car (xml-get-children msg 'stack)))
 	       (fileuri (xml-get-attribute-or-nil stack 'filename))
-	       (lineno (xml-get-attribute-or-nil stack'lineno)))
+	       (lineno (xml-get-attribute-or-nil stack 'lineno)))
 	  (and fileuri lineno
 	       (geben-session-cursor-update session fileuri lineno)))
 	(run-hook-with-args 'geben-dbgp-stack-update-hook

@@ -49,8 +49,8 @@
 
   ;; evaluation
   (define-key geben-mode-map "e" 'geben-eval-expression)
+  ;;(define-key geben-mode-map "E" 'geben-eval-current-word)
   ;;(define-key geben-mode-map "\C-x\C-e" 'geben-eval-last-sexp)
-  ;;(define-key geben-mode-map "E" 'geben-visit-eval-list)
 
   ;; views
   (define-key geben-mode-map "w" 'geben-where)
@@ -458,6 +458,14 @@ Key mapping and other information is described its help page."
 				 nil nil nil 'geben-eval-history))))
   (geben-with-current-session session
     (geben-dbgp-command-eval session expr)))
+
+(defun geben-eval-current-word ()
+  "Evaluate a word at where the cursor is pointing."
+  (interactive)
+  (let ((expr (current-word)))
+    (when expr
+      (geben-with-current-session session
+	(geben-dbgp-command-eval session expr)))))
 
 (defun geben-open-file (fileuri)
   "Open a debugger server side file specified by FILEURI.
