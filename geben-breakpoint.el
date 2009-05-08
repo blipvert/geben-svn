@@ -210,6 +210,15 @@ id-or-obj should be either a breakpoint id or a breakpoint object."
   (geben-breakpoint-remove session
 			   (geben-breakpoint-list (geben-session-breakpoint session))))
 
+(defun geben-breakpoint-find-at-pos (session buf pos)
+  (with-current-buffer buf
+    (remove-if 'null
+	       (mapcar (lambda (overlay)
+			 (let ((bp (overlay-get overlay 'bp)))
+			   (and (eq :line (plist-get bp :type))
+				bp)))
+		       (overlays-at pos)))))
+
 ;; breakpoint list
 
 (defface geben-breakpoint-fileuri
@@ -409,7 +418,8 @@ Key mapping and other information is described its help page."
 	(unless bp
 	  (let* ((type (intern-soft (concat ":" (xml-get-attribute msg-bp 'type))))
 		 (fileuri (xml-get-attribute-or-nil msg-bp 'filename))
-		 (lineno (xml-get-attribute-or-nil msg-bp 'lineno))
+		 (lineno (or (xml-get-attribute-or-nil msg-bp 'lineno)
+			     (xml-get-attribute-or-nil msg-bp 'line)))
 		 (function (xml-get-attribute-or-nil msg-bp 'function))
 		 (class (xml-get-attribute-or-nil msg-bp 'class))
 		 (method function)

@@ -20,12 +20,12 @@
       (geben-dbgp-send-command session "status")
     (lambda (session cmd msg err)
       (unless err
-	(if (equal "break" (xml-get-attribute msg 'status))
+	(if (not geben-pause-at-entry-line)
+	    (geben-dbgp-command-run session)
+	  (if (equal "break" (xml-get-attribute msg 'status))
 	    ;; it is nonconforming to DBGp specs; anyway manage it.
-	    (run-hook-with-args 'geben-dbgp-continuous-command-hook session)
-	  (if geben-pause-at-entry-line
-	      (geben-dbgp-command-step-into session)
-	    (geben-dbgp-command-run session)))))))
+	      (run-hook-with-args 'geben-dbgp-continuous-command-hook session)
+	    (geben-dbgp-command-step-into session)))))))
 
 ;; features
 

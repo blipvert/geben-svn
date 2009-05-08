@@ -1,3 +1,9 @@
+2009-05-09  reedom  <fujinaka.tohru@gmail.com>
+
+        * [FIX] With Komodo's Perl Debugging Extension, GEBEN possibly caused
+                an internal error when user attempted to set a lineno breakpoint
+                at a blank line.
+
 2009-05-08  reedom  <fujinaka.tohru@gmail.com>
 
         * [ADD] New variable `geben-version'.

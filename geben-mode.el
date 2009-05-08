@@ -26,7 +26,7 @@ If non-nil, GEBEN will query the user before removing all breakpoints."
   ;;(define-key geben-mode-map "G" 'geben-Go-nonstop-mode)
   (define-key geben-mode-map ">" 'geben-set-redirect)
   ;;(define-key geben-mode-map "T" 'geben-Trace-fast-mode)
-  ;;(define-key geben-mode-map "c" 'geben-continue-mode)
+  ;;(define-key geben-mode-map "c" 'geben-run-to-cursor)
   ;;(define-key geben-mode-map "C" 'geben-Continue-fast-mode)
 
   ;;(define-key geben-mode-map "f" 'geben-forward) not implemented
@@ -193,6 +193,12 @@ It will break at next breakpoint, or stops at the end of the script."
   (interactive)
   (geben-with-current-session session
     (geben-dbgp-command-run session)))
+
+;; (defun geben-run-to-cursor ()
+;;   "Run the script to where the cursor points."
+;;   (interactive)
+;;   (geben-with-current-session session
+;;     nil))
 
 (defun geben-stop ()
   "End execution of the script immediately."
@@ -428,27 +434,13 @@ hit-value interactively."
 				 (geben-bp-make session :watch
 						:expression expr))))
 
-(defun geben-unset-breakpoint-line (fileuri path lineno)
+(defun geben-unset-breakpoint-line ()
   "Clear a breakpoint set at the current line."
-  (interactive (list nil nil nil))
+  (interactive)
   (geben-with-current-session session
-    (when (interactive-p)
-      (setq path (buffer-file-name (current-buffer)))
-      (when (stringp path)
-	(setq lineno (and (get-file-buffer path)
-			  (with-current-buffer (get-file-buffer path)
-			    (geben-what-line))))
-	(setq fileuri (or (geben-session-source-fileuri session path)
-			  (geben-source-fileuri session path)
-			  (concat "file://" (file-truename path))))))
-    (let* ((bp (find-if (lambda (bp)
-			  (and (eq :line (plist-get bp :type))
-			       (eq lineno (plist-get bp :lineno))
-			       (equal fileuri (plist-get bp :fileuri))))
-			(geben-breakpoint-list (geben-session-breakpoint session))))
-	   (bid (and bp (plist-get bp :id))))
-      (if bid
-	  (geben-dbgp-command-breakpoint-remove session bid)))))
+    (mapc (lambda (bp)
+	    (geben-dbgp-command-breakpoint-remove session (plist-get bp :id)))
+	  (geben-breakpoint-find-at-pos session (current-buffer) (point)))))
 
 (defun geben-clear-breakpoints ()
   "Clear all breakpoints.
