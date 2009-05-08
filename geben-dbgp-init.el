@@ -14,7 +14,7 @@
     (when fileuri
       (geben-dbgp-command-source session fileuri))))
 
-(defun geben-dbgp-init-proceed-to-first-line (session)
+(defun geben-dbgp-first-continuous-command (session)
   ""
   (geben-dbgp-sequence
       (geben-dbgp-send-command session "status")
@@ -23,7 +23,9 @@
 	(if (equal "break" (xml-get-attribute msg 'status))
 	    ;; it is nonconforming to DBGp specs; anyway manage it.
 	    (run-hook-with-args 'geben-dbgp-continuous-command-hook session)
-	  (geben-dbgp-command-step-into session))))))
+	  (if geben-pause-at-entry-line
+	      (geben-dbgp-command-step-into session)
+	    (geben-dbgp-command-run session)))))))
 
 ;; features
 
@@ -105,12 +107,12 @@ of the function is passed to feature_set DBGp command."
 			   (cons "-n" feature)
 			   (cons "-v" (format "%S" (eval value)))))
 
-(add-hook 'geben-dbgp-init-hook #'geben-dbgp-init-fetch-entry-source t)
+;(add-hook 'geben-dbgp-init-hook #'geben-dbgp-init-fetch-entry-source t)
 (add-hook 'geben-dbgp-init-hook #'geben-dbgp-feature-init t)
 (add-hook 'geben-dbgp-init-hook #'geben-dbgp-redirect-init t)
 (add-hook 'geben-dbgp-init-hook #'geben-dbgp-command-context-names t)
 (add-hook 'geben-dbgp-init-hook #'geben-dbgp-breakpoint-restore t)
-(add-hook 'geben-dbgp-init-hook #'geben-dbgp-init-proceed-to-first-line t)
+(add-hook 'geben-dbgp-init-hook #'geben-dbgp-first-continuous-command t)
 
 (add-hook 'geben-dbgp-continuous-command-hook #'geben-dbgp-stack-update)
 (add-hook 'geben-dbgp-continuous-command-hook #'geben-dbgp-breakpoint-list-refresh)

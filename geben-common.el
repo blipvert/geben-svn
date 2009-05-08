@@ -4,7 +4,7 @@
 ;; Filename: geben.el
 ;; Author: reedom <fujinaka.tohru@gmail.com>
 ;; Maintainer: reedom <fujinaka.tohru@gmail.com>
-;; Version: 0.23
+;; Version: 0.24
 ;; URL: http://code.google.com/p/geben-on-emacs/
 ;; Keywords: DBGp, debugger, PHP, Xdebug, Perl, Python, Ruby, Tcl, Komodo
 ;; Compatibility: Emacs 22.1
@@ -73,6 +73,8 @@
   (require 'xml)
   (require 'tree-widget)
   (require 'dbgp))
+
+(defvar geben-version "0.24")
 
 ;;--------------------------------------------------------------
 ;; customization

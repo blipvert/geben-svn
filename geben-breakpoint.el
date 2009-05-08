@@ -113,7 +113,7 @@ debugging is finished."
   (let* ((storage (geben-session-storage session))
 	 (list (plist-get storage :bp)))
     (when (find bp list :test #'geben-bp=)
-      (delete* bp list :test #'geben-bp=))))
+      (plist-put storage :bp (delete* bp list :test #'geben-bp=)))))
 
 (defun geben-session-breakpoint-storage-restore (session)
   (let ((storage (geben-session-storage session))
@@ -185,6 +185,30 @@ id-or-obj should be either a breakpoint id or a breakpoint object."
 	(geben-dbgp-command-breakpoint-set session bp)
 	(lambda (session cmd msg err)
 	  (geben-bp-finalize bp))))))
+
+(defun geben-breakpoint-remove (session bp-or-list)
+  "Remove specified breakpoints."
+  (dolist (bp (if (geben-breakpoint-p bp-or-list)
+		  (list bp-or-list)
+		bp-or-list))
+    (let ((bid (plist-get bp :id)))
+      (if (and (geben-session-active-p session)
+	       bid)
+	  (geben-dbgp-sequence-bind (bid)
+	    (geben-dbgp-send-command session "breakpoint_remove" (cons "-d" bid))
+	    (lambda (session cmd msg err)
+	      ;; remove a stray breakpoint from hash table.
+	      (when err
+		(geben-session-breakpoint-remove session bid))))
+	(setf (geben-breakpoint-list (geben-session-breakpoint session))
+	      (delete-if (lambda (bp1)
+			   (geben-bp= bp bp1))
+			 (geben-breakpoint-list (geben-session-breakpoint session))))))))
+
+(defun geben-breakpoint-clear (session)
+  "Clear all breakpoints."
+  (geben-breakpoint-remove session
+			   (geben-breakpoint-list (geben-session-breakpoint session))))
 
 ;; breakpoint list
 
@@ -328,20 +352,7 @@ The buffer commands are:
 	  (let ((buffer-read-only nil))
 	    (while (re-search-forward "^D" nil t)
 	      (add-to-list 'candidates (get-text-property (point) 'geben-bp)))))
-	(dolist (bp candidates)
-	  (let ((bid (plist-get bp :id)))
-	    (if (and (geben-session-active-p session)
-		     bid)
-		(geben-dbgp-sequence-bind (bid)
-		  (geben-dbgp-send-command session "breakpoint_remove" (cons "-d" bid))
-		  (lambda (session cmd msg err)
-		    ;; remove a stray breakpoint from hash table.
-		    (when err
-		      (geben-session-breakpoint-remove session bid))))
-	      (setf (geben-breakpoint-list (geben-session-breakpoint session))
-		    (delete-if (lambda (bp1)
-				 (geben-bp= bp bp1))
-			       (geben-breakpoint-list (geben-session-breakpoint session)))))))
+	(geben-breakpoint-remove session candidates)
 	(when candidates
 	  (geben-breakpoint-list-display session))))))
 

@@ -11,6 +11,12 @@
 ;;  geben-mode
 ;;==============================================================
 
+(defcustom geben-query-on-clear-breakpoints t
+  "*Specify if query is needed before removing all breakpoints.
+If non-nil, GEBEN will query the user before removing all breakpoints."
+  :group 'geben
+  :type 'boolean)
+
 (defvar geben-mode-map nil)
 (unless geben-mode-map
   (setq geben-mode-map (make-sparse-keymap "geben"))
@@ -18,7 +24,7 @@
   (define-key geben-mode-map " " 'geben-step-again)
   (define-key geben-mode-map "g" 'geben-run)
   ;;(define-key geben-mode-map "G" 'geben-Go-nonstop-mode)
-  (define-key geben-mode-map "t" 'geben-set-redirect)
+  (define-key geben-mode-map ">" 'geben-set-redirect)
   ;;(define-key geben-mode-map "T" 'geben-Trace-fast-mode)
   ;;(define-key geben-mode-map "c" 'geben-continue-mode)
   ;;(define-key geben-mode-map "C" 'geben-Continue-fast-mode)
@@ -42,6 +48,7 @@
   (define-key geben-mode-map "b" 'geben-set-breakpoint-line)
   (define-key geben-mode-map "B" 'geben-breakpoint-menu)
   (define-key geben-mode-map "u" 'geben-unset-breakpoint-line)
+  (define-key geben-mode-map "U" 'geben-clear-breakpoints)
   (define-key geben-mode-map "\C-cb" 'geben-show-breakpoint-list)
   ;;(define-key geben-mode-map "B" 'geben-next-breakpoint)
   ;;(define-key geben-mode-map "x" 'geben-set-conditional-breakpoint)
@@ -62,6 +69,8 @@
   ;; misc
   (define-key geben-mode-map "?" 'geben-mode-help)
   (define-key geben-mode-map "d" 'geben-show-backtrace)
+  (define-key geben-mode-map "t" 'geben-show-backtrace)
+  (define-key geben-mode-map "\C-cp" 'geben-toggle-pause-at-entry-line-flag)
 
   ;;(define-key geben-mode-map "-" 'negative-argument)
 
@@ -441,6 +450,17 @@ hit-value interactively."
       (if bid
 	  (geben-dbgp-command-breakpoint-remove session bid)))))
 
+(defun geben-clear-breakpoints ()
+  "Clear all breakpoints.
+If `geben-query-on-clear-breakpoints' is non-nil, GEBEN will query the user before
+removing all breakpoints."
+  (interactive)
+  (geben-with-current-session session
+    (when (or (not geben-query-on-clear-breakpoints)
+	      (let ((prompt "Clear all breakpoints? (y/N): "))
+		(memq (read-char prompt) '(?Y ?y))))
+      (geben-breakpoint-clear session))))
+
 (defun geben-show-breakpoint-list ()
   "Display breakpoint list.
 The breakpoint list buffer is under `geben-breakpoint-list-mode'.
@@ -481,6 +501,14 @@ Key mapping and other information is described its help page."
   (interactive)
   (geben-with-current-session session
     (geben-backtrace session)))
+
+(defun geben-toggle-pause-at-entry-line-flag ()
+  "Toggle `geben-pause-at-entry-line'."
+  (interactive)
+  (setq geben-pause-at-entry-line
+	(not geben-pause-at-entry-line))
+  (if (interactive-p)
+      (message (format "`geben-pause-at-entry-line' is %s" geben-pause-at-entry-line))))
 
 (defun geben-set-redirect (target &optional arg)
   "Set the debuggee script's output redirection mode.

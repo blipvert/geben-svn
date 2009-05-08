@@ -38,6 +38,13 @@ Each function is invoked with one argument, SESSION"
   :group 'geben
   :type 'hook)
 
+(defcustom geben-pause-at-entry-line t
+  "*Specify whether debuggee script should be paused at the entry line.
+If the value is t, GEBEN will automatically pause the starting program
+at the entry line of the script."
+  :group 'geben
+  :type 'boolean)
+
 (defstruct (geben-session
 	    (:constructor nil)
 	    (:constructor geben-session-make))
