@@ -2840,7 +2840,8 @@ and call `geben-dbgp-entry' with each chunk."
       (unless err
 	(if (not geben-pause-at-entry-line)
 	    (geben-dbgp-command-run session)
-	  (if (equal "break" (xml-get-attribute msg 'status))
+	  (if (and (equal "break" (xml-get-attribute msg 'status))
+		   (not (member (geben-session-language session) '(:perl))))
 	    ;; it is nonconforming to DBGp specs; anyway manage it.
 	      (run-hook-with-args 'geben-dbgp-continuous-command-hook session)
 	    (geben-dbgp-command-step-into session)))))))
