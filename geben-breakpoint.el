@@ -661,8 +661,7 @@ the file."
 			(cons "-o" ">=")
 			(cons "-s" (or (plist-get bp :state)
 				       "enabled"))
-			(cons "-r" (or (plist-get bp :run-once)
-				       0))
+			(cons "-r" (if (plist-get bp :run-once) 1 0))
 			(and (plist-get bp :expression)
 			     (cons "--"
 				   (base64-encode-string
@@ -672,37 +671,38 @@ the file."
 
 (defun geben-dbgp-response-breakpoint-set (session cmd msg)
   "A response message handler for \`breakpoint_set\' command."
-  (let* ((type (intern (concat ":" (geben-cmd-param-get cmd "-t"))))
-	 (id (xml-get-attribute-or-nil msg 'id))
-	 (fileuri (geben-cmd-param-get cmd "-f"))
-	 (lineno (geben-cmd-param-get cmd "-n"))
-	 (function (geben-cmd-param-get cmd "-m"))
-	 (class (geben-cmd-param-get cmd "-a"))
-	 (method function)
-	 (exception (geben-cmd-param-get cmd "-x"))
-	 (expression (geben-cmd-param-get cmd "--"))
-	 (hit-value (geben-cmd-param-get cmd "-h"))
-	 (state (geben-cmd-param-get cmd "-s"))
-	 (local-path (and fileuri
-			  (or (geben-session-source-local-path session fileuri)
-			      (geben-source-local-path session fileuri))))
-	 bp)
-    (when expression
-      (setq expression (base64-decode-string expression)))
-    (geben-session-breakpoint-add session
-			  (setq bp (geben-bp-make session type
-						  :id id
-						  :fileuri fileuri
-						  :lineno lineno
-						  :class class
-						  :method method
-						  :function function
-						  :exception exception
-						  :expression expression
-						  :hit-value hit-value
-						  :local-path local-path
-						  :state state))))
-  (geben-breakpoint-list-refresh))
+  (unless (eq (geben-cmd-param-get cmd "-r") 1) ; unless :run-once is set
+    (let* ((type (intern (concat ":" (geben-cmd-param-get cmd "-t"))))
+	   (id (xml-get-attribute-or-nil msg 'id))
+	   (fileuri (geben-cmd-param-get cmd "-f"))
+	   (lineno (geben-cmd-param-get cmd "-n"))
+	   (function (geben-cmd-param-get cmd "-m"))
+	   (class (geben-cmd-param-get cmd "-a"))
+	   (method function)
+	   (exception (geben-cmd-param-get cmd "-x"))
+	   (expression (geben-cmd-param-get cmd "--"))
+	   (hit-value (geben-cmd-param-get cmd "-h"))
+	   (state (geben-cmd-param-get cmd "-s"))
+	   (local-path (and fileuri
+			    (or (geben-session-source-local-path session fileuri)
+				(geben-source-local-path session fileuri))))
+	   bp)
+      (when expression
+	(setq expression (base64-decode-string expression)))
+      (geben-session-breakpoint-add session
+				    (setq bp (geben-bp-make session type
+							    :id id
+							    :fileuri fileuri
+							    :lineno lineno
+							    :class class
+							    :method method
+							    :function function
+							    :exception exception
+							    :expression expression
+							    :hit-value hit-value
+							    :local-path local-path
+							    :state state))))
+    (geben-breakpoint-list-refresh)))
 
 (defun geben-dbgp-response-breakpoint-update (session cmd msg)
   "A response message handler for `breakpoint_update' command."

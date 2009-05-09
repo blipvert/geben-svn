@@ -26,7 +26,7 @@ If non-nil, GEBEN will query the user before removing all breakpoints."
   ;;(define-key geben-mode-map "G" 'geben-Go-nonstop-mode)
   (define-key geben-mode-map ">" 'geben-set-redirect)
   ;;(define-key geben-mode-map "T" 'geben-Trace-fast-mode)
-  ;;(define-key geben-mode-map "c" 'geben-run-to-cursor)
+  (define-key geben-mode-map "c" 'geben-run-to-cursor)
   ;;(define-key geben-mode-map "C" 'geben-Continue-fast-mode)
 
   ;;(define-key geben-mode-map "f" 'geben-forward) not implemented
@@ -194,11 +194,18 @@ It will break at next breakpoint, or stops at the end of the script."
   (geben-with-current-session session
     (geben-dbgp-command-run session)))
 
-;; (defun geben-run-to-cursor ()
-;;   "Run the script to where the cursor points."
-;;   (interactive)
-;;   (geben-with-current-session session
-;;     nil))
+(defun geben-run-to-cursor ()
+  "Run the script to where the cursor points."
+  (interactive)
+  (geben-with-current-session session
+    (geben-dbgp-sequence
+	(geben-set-breakpoint-line nil nil nil t)
+      (lambda (session cmd msg err)
+	(let ((bid (xml-get-attribute-or-nil msg 'id)))
+	  (geben-dbgp-sequence-bind (bid)
+	    (geben-run)
+	    (lambda (session cmd msg err)
+	      (geben-dbgp-command-breakpoint-remove session bid))))))))
 
 (defun geben-stop ()
   "End execution of the script immediately."
@@ -254,7 +261,7 @@ hit-value interactively.
 	    (call-interactively fn)
 	  (error (concat (symbol-name fn) " is not implemented.")))))))
 
-(defun geben-set-breakpoint-common (session hit-value cmd)
+(defun geben-set-breakpoint-common (session hit-value bp)
   (setq hit-value (if (and (not (null hit-value))
 			   (listp hit-value))
 		      (if (fboundp 'read-number)
@@ -262,13 +269,13 @@ hit-value interactively.
 			(string-to-number
 			 (read-string "Number of hit to break: ")))
 		    hit-value))
-  (plist-put cmd :hit-value (if (and (numberp hit-value)
+  (plist-put bp :hit-value (if (and (numberp hit-value)
 				     (<= 0 hit-value))
 				hit-value
 			      0))
-  (geben-dbgp-command-breakpoint-set session cmd))
+  (geben-dbgp-command-breakpoint-set session bp))
 
-(defun geben-set-breakpoint-line (fileuri lineno &optional hit-value)
+(defun geben-set-breakpoint-line (fileuri lineno &optional hit-value temporary-p)
   "Set a breakpoint at the current line.
 Optionally, with a numeric argument you can specify `hit-value'
 \(number of hits to break); \\[universal-argument] 2 \
@@ -277,7 +284,7 @@ with 2 hit-value.
 With just a prefix arg \(\\[universal-argument] \\[geben-set-breakpoint-line]), \
 this command will also ask a
 hit-value interactively."
-  (interactive (list nil nil current-prefix-arg))
+  (interactive (list nil nil current-prefix-arg nil))
   (geben-with-current-session session
     (let ((local-path (if fileuri
 			  (geben-session-source-local-path session fileuri)
@@ -293,7 +300,8 @@ hit-value interactively."
 						lineno
 					      (geben-what-line))
 				    :local-path local-path
-				    :overlay t)))))
+				    :overlay t
+				    :run-once temporary-p)))))
 
 (defvar geben-set-breakpoint-call-history nil)
 (defvar geben-set-breakpoint-fileuri-history nil)
