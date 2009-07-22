@@ -120,7 +120,7 @@ Here is an illustration on PHP debugging.
      B       set a breakpoint interactively
      u       unset a breakpoint at a line
      U       clear all breakpoints
-     \C-b    display breakpoint list
+     \C-c b  display breakpoint list
      >       set redirection mode
      \C-u t  change redirection mode
      d       display backtrace
