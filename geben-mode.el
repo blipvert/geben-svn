@@ -71,6 +71,7 @@ If non-nil, GEBEN will query the user before removing all breakpoints."
   (define-key geben-mode-map "d" 'geben-show-backtrace)
   (define-key geben-mode-map "t" 'geben-show-backtrace)
   (define-key geben-mode-map "\C-cp" 'geben-toggle-pause-at-entry-line-flag)
+  (define-key geben-mode-map "\C-cf" 'geben-find-file)
 
   ;;(define-key geben-mode-map "-" 'negative-argument)
 
@@ -550,4 +551,15 @@ from \`redirect', \`intercept' and \`disabled'."
   (geben-with-current-session session
     (geben-context-list-display session (or depth 0))))
 
+(defun geben-find-file ()
+  (interactive)
+    (geben-with-current-session session
+      (let ((file-uri (geben-session-source-read-file-name
+		       session
+		       (file-name-directory (geben-source-fileuri session
+								  (buffer-file-name)))
+		       t)))
+	(when file-uri
+	  (geben-open-file file-uri)))))
+  
 (provide 'geben-mode)

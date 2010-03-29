@@ -78,14 +78,22 @@ A source object forms a property list with three properties
 (defun geben-source-fileuri (session local-path)
   "Guess a file uri string which counters to LOCAL-PATH."
   (let* ((tempdir (geben-session-tempdir session))
-	 (templen (length tempdir)))
+	 (templen (length tempdir))
+	 (tramp-spec (plist-get (geben-session-storage session) :tramp))
+	 (tramp-spec-len (and tramp-spec (length tramp-spec))))
     (concat "file://"
-	    (if (and (< templen (length local-path))
-		     (string= tempdir (substring local-path 0 templen)))
-		(substring local-path
-			   (- templen
-			      (if (string< "" (file-name-nondirectory tempdir)) 0 1)))
-	      local-path))))
+	    (cond
+	     ((and (< templen (length local-path))
+		   (string= tempdir (substring local-path 0 templen)))
+	      (substring local-path
+			 (- templen
+			    (if (string< "" (file-name-nondirectory tempdir)) 0 1))))
+	     ((and tramp-spec
+		   (< tramp-spec-len (length local-path))
+		   (string= tramp-spec (substring local-path 0 tramp-spec-len)))
+	      (substring local-path tramp-spec-len))
+	     (t
+	      local-path)))))
 
 (defun geben-source-local-path (session fileuri)
   "Generate path string from FILEURI to store temporarily."
@@ -94,7 +102,7 @@ A source object forms a property list with three properties
       (expand-file-name (substring local-path (if (string-match "^[A-Z]:" local-path) 3 1))
 			(geben-session-tempdir session)))))
 
-(defun geben-source-local-path-in-server (session fileuri)
+(defun geben-source-local-path-in-server (session fileuri &optional disable-completion)
   "Make a path string correspond to FILEURI."
   (when (string-match "^\\(file\\|https?\\):/+" fileuri)
     (let ((path (substring fileuri (1- (match-end 0)))))
@@ -102,7 +110,8 @@ A source object forms a property list with three properties
       (setq path (url-unhex-string path))
       (when (string-match "^/[A-Z]:" path) ;; for HTTP server on Windows
 	(setq path (substring path 1)))
-      (if (string= "" (file-name-nondirectory path))
+      (if (and (not disable-completion)
+	       (string= "" (file-name-nondirectory path)))
 	  (expand-file-name (geben-source-default-file-name session)
 			    path)
 	path))))
@@ -252,11 +261,27 @@ FILEURI is a uri of the target file of a debuggee site."
   :group 'geben
   :type 'function)
 
-(defun geben-session-source-visit-original-file (session fileuri)
+(defcustom geben-get-tramp-spec-for nil
+  "Function to retrieve TRAMP spec for a file path of a remove server.
+This function is called when visiting a remote server file, with
+a parameter `remote-path'. (e.g. \"/192.168.1.32:/var/www/index.php\")
+If `remote-path' is unknown to the function, it should return nil.
+Or return specific TRAMP spec. (e.g. \"/user@example.com:\""
+  :group 'geben
+  :type 'function)
+
+(defun geben-session-source-visit-original-file (session fileuri &optional disable-completion)
+  (let ((target-path (geben-session-source-read-file-name session fileuri disable-completion)))
+    (and target-path
+	 (prog1
+	     (find-file target-path)
+	   (message "visited: %s" target-path)))))
+
+(defun geben-session-source-read-file-name (session fileuri &optional disable-completion)
   (let* ((proc (geben-session-process session))
 	 (listener (dbgp-listener-get proc))
 	 (ip (format-network-address (dbgp-ip-get proc) t))
-	 (local-path (geben-source-local-path-in-server session fileuri))
+	 (local-path (geben-source-local-path-in-server session fileuri disable-completion))
 	 target-path)
     (if (or (equal ip "127.0.0.1")
 	    (and (fboundp 'network-interface-list)
@@ -264,13 +289,22 @@ FILEURI is a uri of the target file of a debuggee site."
 				      (format-network-address (cdr addr) t))
 				    (network-interface-list)))))
 	;; local file
-	(setq target-path local-path)
+	(progn
+	  (unless (file-regular-p local-path)
+	    (while (not (file-regular-p (setq local-path
+					      (read-file-name "Find local file: "
+							      local-path local-path t ""))))
+	      (beep)))
+	  (setq target-path local-path))
       ;; remote file
       (condition-case nil
 	  (if (fboundp 'geben-visit-remote-file)
 	      (funcall geben-visit-remote-file session fileuri)
 	    (let* ((storage (geben-session-storage session))
-		   (path-prefix (plist-get storage :tramp))
+		   (path-prefix (or (plist-get storage :tramp)
+				    (and (fboundp 'geben-get-tramp-spec-for)
+					 (funcall 'geben-get-tramp-spec-for
+						  (format "/%s:%s" ip local-path)))))
 		   (find-file-default (if path-prefix
 					  (concat path-prefix local-path)
 					(format "/%s:%s" ip local-path))))
@@ -283,7 +317,6 @@ FILEURI is a uri of the target file of a debuggee site."
 		(plist-put storage :tramp (replace-regexp-in-string ":[^:]+$" ":" target-path)))))
 	(quit (beep))))
     (and target-path
-	 (find-file target-path)
-	 (message "visited: %s" target-path))))
-  
+	 (geben-source-fileuri session target-path))))
+
 (provide 'geben-source)
