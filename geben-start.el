@@ -6,8 +6,15 @@
   :group 'geben
   :type 'integer)
 
-(defcustom geben-dbgp-default-proxy '("127.0.0.1" 9001 "default" nil)
-  "Default setting for a new DBGp proxy connection."
+(defcustom geben-dbgp-default-proxy '("127.0.0.1" 9001 "default" nil t)
+  "Default setting for a new DBGp proxy connection.
+
+The first and second elements are address and port where the DBGp proxy listening on.
+The third element is IDE key.
+The forth element is a flag but currently not used yet.
+The fifth element is port to be used in debugging sessions. If a non-integer value is
+set, then any free port will be allocated.
+"
   :group 'geben)
 
 ;;;###autoload
@@ -84,7 +91,7 @@ described its help page."
     (and listener t)))
 
 (defun geben-proxy (ip-or-addr port idekey ;;multi-session-p
-			       )
+			       &optional session-port)
   "Start a new DBGp proxy listener.
 The DBGp proxy should be found at IP-OR-ADDR / PORT.
 This create a new DBGp listener and register it to the proxy
@@ -105,9 +112,18 @@ associating with the IDEKEY."
 				   (nth 2 (default-value 'geben-dbgp-default-proxy)))))
 		  (dbgp-read-string "IDE key: " nil 'dbgp-proxy-idekey-history))
 		;;(not (memq (read-char "Multi session(Y/n): ") '(?N ?n)))
-		))
+		(let ((default (or (car dbgp-proxy-session-port-history)
+				   (nth 4 geben-dbgp-default-proxy)
+				   (nth 4 (default-value 'geben-dbgp-default-proxy)))))
+		  (unless (numberp default)
+		    (setq default 0))
+		  (dbgp-read-integer (format "Port for debug session (%s): "
+					     (if (< 0 default)
+						 (format "default %d, 0 to use any free port" default)
+					       (format "leave empty to use any free port")))
+				     default 'dbgp-proxy-session-port-history))))
   (geben-dbgp-start-proxy ip-or-addr port idekey ;;multi-session-p
-			  ))
+			  session-port))
 
 (defalias 'geben-proxy-end #'dbgp-proxy-unregister)
 

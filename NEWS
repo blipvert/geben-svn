@@ -1,3 +1,9 @@
+Version 0.25 (2009-11-19)
+
+  * improved:
+    - to `geben-proxy' now you can specify any fixed port number to
+      which incoming debugging session is bound.
+
 Version 0.24 (2009-05-08)
 
   * new commands added:

@@ -26,11 +26,12 @@
 		nil 3))))
 
 (defun geben-dbgp-start-proxy (ip-or-addr port idekey ;;multi-session-p
-					  )
+					  session-port)
   "Create DBGp listeners at each CONNECTION-POINTS."
   (condition-case error-sexp
       (let* ((result
 	      (dbgp-proxy-register-exec ip-or-addr port idekey nil ;; multi-session-p
+					session-port
 					:session-accept 'geben-dbgp-session-accept-p
 					:session-init 'geben-dbgp-session-init
 					:session-filter 'geben-dbgp-session-filter
