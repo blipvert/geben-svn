@@ -1090,8 +1090,7 @@ Or return specific TRAMP spec. (e.g. \"/user@example.com:\""
 	      (when (tramp-tramp-file-p target-path)
 		(plist-put storage :tramp (replace-regexp-in-string ":[^:]+$" ":" target-path)))))
 	(quit (beep))))
-    (and target-path
-	 (geben-source-fileuri session target-path))))
+    target-path))
 
 
 ;;==============================================================
@@ -3519,13 +3518,13 @@ from \`redirect', \`intercept' and \`disabled'."
 (defun geben-find-file ()
   (interactive)
     (geben-with-current-session session
-      (let ((file-uri (geben-session-source-read-file-name
-		       session
-		       (file-name-directory (geben-source-fileuri session
-								  (buffer-file-name)))
-		       t)))
-	(when file-uri
-	  (geben-open-file file-uri)))))
+      (let ((file-path (geben-session-source-read-file-name
+			session
+			(file-name-directory (geben-source-fileuri session
+								   (buffer-file-name)))
+			t)))
+	(when file-path
+	  (geben-open-file (geben-source-fileuri session file-path))))))
   
 
 (defcustom geben-dbgp-default-port 9000

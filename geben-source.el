@@ -316,7 +316,6 @@ Or return specific TRAMP spec. (e.g. \"/user@example.com:\""
 	      (when (tramp-tramp-file-p target-path)
 		(plist-put storage :tramp (replace-regexp-in-string ":[^:]+$" ":" target-path)))))
 	(quit (beep))))
-    (and target-path
-	 (geben-source-fileuri session target-path))))
+    target-path))
 
 (provide 'geben-source)
