@@ -6,6 +6,7 @@ EMACS   = emacs
 CP      = cp -p
 RM      = rm -f
 INSTALL = install
+ZIP	= zip
 
 .el.elc:
 	$(EMACS) -Q --batch --eval "(add-to-list 'load-path \".\")" --eval '(byte-compile-file "$<")'
@@ -33,6 +34,17 @@ GEBEN-MODULES	= \
 	geben-dbgp-init.el \
 	geben-mode.el \
 	geben-start.el
+
+DIST-MODULES	= \
+	ChangeLog \
+	LICENSE \
+	Makefile \
+	NEWS \
+	README \
+	geben-dbgp.el \
+	geben.el \
+	etc \
+	tree-widget
 
 MODULES		= $(DBGP-SRC) $(GEBEN-MODULES)
 MODULE-OBJS	= $(MODULES:%.el=%.elc)
@@ -84,6 +96,10 @@ install: compile
 .PHONY: clean
 clean:
 	$(RM) $(OBJS) $(MODULE-OBJS) $(GEBEN-SRC)
+
+.PHONY: dist-package
+dist-package:
+	@$(ZIP) -r geben-`head -n 1 README | sed 's+.*-\\([0-9.]*\\) .*$$+\\1+'`.zip $(DIST-MODULES)
 
 $(GEBEN-SRC): $(GEBEN-MODULES)
 	perl -an -e '$$x ? (/^\(provide/ and $$x=0) : (/^\(require/ or $$x=1); print if $$x' $^ > $@

@@ -200,4 +200,16 @@ at the entry line of the script."
     (when (file-directory-p tempdir)
       (geben-remove-directory-tree tempdir))))
 
+;; misc
+
+(defsubst geben-session-ip-get (session)
+  "Get ip address of the host server."
+  (let* ((proc (geben-session-process session))
+	 (listener (dbgp-listener-get proc)))
+    (format-network-address (dbgp-ip-get proc) t)))
+
+(defun geben-session-remote-p (session)
+  "Get ip address of the host server."
+  (geben-remote-p (geben-session-ip-get session)))
+
 (provide 'geben-session)

@@ -278,44 +278,44 @@ Or return specific TRAMP spec. (e.g. \"/user@example.com:\""
 	   (message "visited: %s" target-path)))))
 
 (defun geben-session-source-read-file-name (session fileuri &optional disable-completion)
-  (let* ((proc (geben-session-process session))
-	 (listener (dbgp-listener-get proc))
-	 (ip (format-network-address (dbgp-ip-get proc) t))
-	 (local-path (geben-source-local-path-in-server session fileuri disable-completion))
-	 target-path)
-    (if (or (equal ip "127.0.0.1")
-	    (and (fboundp 'network-interface-list)
-		 (member ip (mapcar (lambda (addr)
-				      (format-network-address (cdr addr) t))
-				    (network-interface-list)))))
-	;; local file
-	(progn
-	  (unless (file-regular-p local-path)
-	    (while (not (file-regular-p (setq local-path
-					      (read-file-name "Find local file: "
-							      local-path local-path t ""))))
-	      (beep)))
-	  (setq target-path local-path))
-      ;; remote file
-      (condition-case nil
-	  (if (fboundp 'geben-visit-remote-file)
-	      (funcall geben-visit-remote-file session fileuri)
-	    (let* ((storage (geben-session-storage session))
-		   (path-prefix (or (plist-get storage :tramp)
-				    (and (fboundp 'geben-get-tramp-spec-for)
-					 (funcall 'geben-get-tramp-spec-for
-						  (format "/%s:%s" ip local-path)))))
-		   (find-file-default (if path-prefix
-					  (concat path-prefix local-path)
-					(format "/%s:%s" ip local-path))))
-	      (setq target-path (read-file-name "Find remote file: "
-						(file-name-directory find-file-default)
-						find-file-default t
-						(file-name-nondirectory find-file-default)))
-	      (require 'tramp)
-	      (when (tramp-tramp-file-p target-path)
-		(plist-put storage :tramp (replace-regexp-in-string ":[^:]+$" ":" target-path)))))
-	(quit (beep))))
-    target-path))
+  (if (geben-session-remote-p session)
+      (geben-session-source-read-file-name-remote session fileuri disable-completion)
+    (geben-session-source-read-file-name-local session fileuri disable-completion)))
+
+(defun geben-session-source-read-file-name-local (session fileuri &optional disable-completion)
+  (let ((local-path (geben-source-local-path-in-server session fileuri disable-completion)))
+    ;; local file
+    (unless (file-regular-p local-path)
+      (while (not (file-regular-p (setq local-path
+					(read-file-name "Find local file: "
+							local-path local-path t ""))))
+	(beep)))
+    (expand-file-name local-path)))
+
+(defun geben-session-source-read-file-name-remote (session fileuri &optional disable-completion)
+  (condition-case nil
+      (if (fboundp 'geben-visit-remote-file)
+	  (funcall geben-visit-remote-file session fileuri)
+	(let* ((ip (geben-session-ip-get session))
+	       (local-path (geben-source-local-path-in-server session fileuri disable-completion))
+	       (storage (geben-session-storage session))
+	       (path-prefix (or (plist-get storage :tramp)
+				(and (fboundp 'geben-get-tramp-spec-for)
+				     (funcall 'geben-get-tramp-spec-for
+					      (format "/%s:%s" ip local-path)))))
+	       (find-file-default (if path-prefix
+				      (concat path-prefix local-path)
+				    (format "/%s:%s" ip local-path))))
+	  (while (not (tramp-handle-file-regular-p 
+		       (setq find-file-default (read-file-name "Find remote file: "
+							       (file-name-directory find-file-default)
+							       find-file-default t
+							       (file-name-nondirectory find-file-default)))))
+	    (beep))
+	  (require 'tramp)
+	  (when (tramp-tramp-file-p find-file-default)
+	    (plist-put storage :tramp (replace-regexp-in-string ":[^:]+$" ":" find-file-default)))
+	  find-file-default))
+    (quit (beep))))
 
 (provide 'geben-source)

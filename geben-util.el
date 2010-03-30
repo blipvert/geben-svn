@@ -71,6 +71,14 @@ If POS is omitted, then the current position is used."
 		    (geben-remove-directory-tree path))))))
 	  (directory-files basedir t nil t))
     (delete-directory basedir)))
+
+(defun geben-remote-p (ip)
+  "Test whether IP refers a remote system."
+  (not (or (equal ip "127.0.0.1")
+	   (and (fboundp 'network-interface-list)
+		(member ip (mapcar (lambda (addr)
+				     (format-network-address (cdr addr) t))
+				   (network-interface-list)))))))
   
 ;;--------------------------------------------------------------
 ;;  cross emacs overlay definitions

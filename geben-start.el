@@ -77,10 +77,10 @@ described its help page."
 				     (number-to-string (second (process-contact listener)))))
 			      dbgp-listeners))))
      (list
-      ;; ask user for the target idekey.
-      (read (completing-read "Listener port to kill: " ports nil t
-			     (and (eq 1 (length ports))
-				  (car ports)))))))
+      (if (= 1 (length ports))
+	  (string-to-number (car ports))
+	;; ask user for the target idekey.
+	(read (completing-read "Listener port to kill: " ports nil t))))))
   (let ((listener (dbgp-listener-find port)))
     (dbgp-listener-kill port)
     (and (interactive-p)
