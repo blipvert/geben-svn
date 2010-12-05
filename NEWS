@@ -1,3 +1,10 @@
+Version 0.27 (20010-12-05)
+
+  * improved:
+    - Now you can set any breakpoint out of a debugging session.
+    - Changed name format of a debugging buffer, as like "xxx.php <dbg>".
+    - Changed the default value of `geben-source-coding-system' to nil.
+
 Version 0.26 (20010-03-29)
 
   * new command:

@@ -30,13 +30,14 @@
 
 (defun geben-session-redirect-init (session)
   (setf (geben-session-redirect session) (geben-redirect-make))
-  (dolist (type '(:stdout :stderr))
-    (let ((buf (get-buffer (geben-session-redirect-buffer-name session type))))
-      (when (buffer-live-p buf)
-	(with-current-buffer buf
-	  (let ((inhibit-read-only t)
-		(inhibit-modification-hooks t))
-	    (erase-buffer)))))))
+  (when (geben-session-process session)
+    (dolist (type '(:stdout :stderr))
+      (let ((buf (get-buffer (geben-session-redirect-buffer-name session type))))
+	(when (buffer-live-p buf)
+	  (with-current-buffer buf
+	    (let ((inhibit-read-only t)
+		  (inhibit-modification-hooks t))
+	      (erase-buffer))))))))
 
 (add-hook 'geben-session-enter-hook #'geben-session-redirect-init)
 

@@ -14,13 +14,13 @@
 (defstruct (geben-breakpoint
 	    (:constructor nil)
 	    (:constructor geben-breakpoint-make))
-  "Breakpoint setting.
+  "Configuration of breakpoints for a session.
 
 types:
-  Breakpoint types supported by the current debugger engine.
+  Breakpoint types, supported by the current debugger engine.
 
 list:
-  Break point list."
+  A list of break points."
   (types '(:line :call :return :exception :conditional))
   list)
 
@@ -162,9 +162,12 @@ id-or-obj should be either a breakpoint id or a breakpoint object."
 
 (defun geben-dbgp-breakpoint-restore (session)
   "Restore breakpoints against new DBGp session."
-  (let ((breakpoints (geben-breakpoint-list (geben-session-breakpoint session)))
+  (let ((breakpoints (mapcan (lambda (session)
+			       (prog1
+				   (geben-breakpoint-list (geben-session-breakpoint session))
+				 (setf (geben-breakpoint-list (geben-session-breakpoint session)) nil)))
+			     (list session (geben-offline-session))))
 	overlay)
-    (setf (geben-breakpoint-list (geben-session-breakpoint session)) nil)
     (dolist (bp breakpoints)
       ;; User may edit code since previous debugging session
       ;; so that lineno breakpoints set before may moved.

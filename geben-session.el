@@ -67,7 +67,15 @@ at the entry line of the script."
   (cursor (list :overlay nil :position nil))
   tempdir
   )
-  
+
+(defvar geben-offline-session nil)
+
+(defun geben-offline-session ()
+  (unless geben-offline-session
+    (setq geben-offline-session (geben-session-make :state :offline))
+    (run-hook-with-args 'geben-session-enter-hook geben-offline-session))
+  geben-offline-session)
+
 (defmacro geben-with-current-session (binding &rest body)
   (declare (indent 1)
 	   (debug (symbolp &rest form)))

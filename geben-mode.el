@@ -286,23 +286,25 @@ With just a prefix arg \(\\[universal-argument] \\[geben-set-breakpoint-line]), 
 this command will also ask a
 hit-value interactively."
   (interactive (list nil nil current-prefix-arg nil))
-  (geben-with-current-session session
-    (let ((local-path (if fileuri
-			  (geben-session-source-local-path session fileuri)
-			(buffer-file-name (current-buffer)))))
-      (geben-set-breakpoint-common session hit-value
-				   (geben-bp-make
-				    session :line
-				    :fileuri (or fileuri
-						 (geben-session-source-fileuri session local-path)
-						 (geben-session-source-fileuri session (file-truename local-path))
-						 (geben-source-fileuri session local-path))
-				    :lineno (if (numberp lineno)
-						lineno
-					      (geben-what-line))
-				    :local-path local-path
-				    :overlay t
-				    :run-once temporary-p)))))
+  (let ((geben-current-session (or geben-current-session
+				   (geben-offline-session))))
+    (geben-with-current-session session
+      (let ((local-path (if fileuri
+			    (geben-session-source-local-path session fileuri)
+			  (buffer-file-name (current-buffer)))))
+	(geben-set-breakpoint-common session hit-value
+				     (geben-bp-make
+				      session :line
+				      :fileuri (or fileuri
+						   (geben-session-source-fileuri session local-path)
+						   (geben-session-source-fileuri session (file-truename local-path))
+						   (geben-source-fileuri session local-path))
+				      :lineno (if (numberp lineno)
+						  lineno
+						(geben-what-line))
+				      :local-path local-path
+				      :overlay t
+				      :run-once temporary-p))))))
 
 (defvar geben-set-breakpoint-call-history nil)
 (defvar geben-set-breakpoint-fileuri-history nil)

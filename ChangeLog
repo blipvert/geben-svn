@@ -1,3 +1,9 @@
+2010-12-05  reedom  <tohru@reedom.com>
+        
+        * [CHG] Now you can set any breakpoint out of a debugging session.
+        * [CHG] Changed name format of a debugging buffer, as like "xxx.php <dbg>".
+        * [CHG] Changed the default value of `geben-source-coding-system' to nil.
+        
 2010-03-29  reedom  <fujinaka.tohru@gmail.com>
         
         * [ADD] New command `geben-find-file', bound to 'C-c f' in geben-mode.

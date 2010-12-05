@@ -12,11 +12,15 @@
 
 ;; file hooks
 
-(defcustom geben-source-visit-hook nil
+(defcustom geben-source-visit-hook 'geben-rename-visit-buffer
   "*Hook running at when GEBEN visits a debuggee script file.
 Each function is invoked with one argument, BUFFER."
   :group 'geben
   :type 'hook)
+
+(defun geben-rename-visit-buffer (session buf)
+  (with-current-buffer buf
+    (rename-buffer (format "%s <dbg>" (file-name-nondirectory (buffer-file-name))) t)))
 
 (defcustom geben-close-mirror-file-after-finish t
   "*Specify whether GEBEN should close fetched files from remote site after debugging.
@@ -40,7 +44,7 @@ If the value is nil, the files left in buffers."
 ;; source hash
 ;;--------------------------------------------------------------
 
-(defcustom geben-source-coding-system 'utf-8
+(defcustom geben-source-coding-system nil
   "Coding system for source code retrieving remotely via the debugger engine."
   :group 'geben
   :type 'coding-system)
