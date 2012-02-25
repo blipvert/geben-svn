@@ -15,7 +15,8 @@ OBJS    = $(SRCS:%.el=%.elc)
 IMGDIR  = tree-widget/geben
 IMGS    = $(wildcard $(IMGDIR)/*.png)
 
-GUESS-SITELISP := $(shell $(EMACS) -Q --batch --eval '	       \
+ifndef SITELISP
+SITELISP := $(shell $(EMACS) -Q --batch --eval '	       \
   (let (tbl)						       \
     (mapc (lambda (path)				       \
 	    (if (string-match "^\\(.*/site-lisp\\)\\b/?" path) \
@@ -28,14 +29,10 @@ GUESS-SITELISP := $(shell $(EMACS) -Q --batch --eval '	       \
     (princ (or (car (car (sort tbl (lambda (a b)	       \
 				     (> (cdr a) (cdr b))))))   \
 	       "")))')
-
-ifndef SITELISP
-SITELISP := $(GUESS-SITELISP)
 ifeq ($(SITELISP), nil)
 $(error Cannot find appropriate site-lisp directory.)
 endif
 endif
-
 
 DEST = $(SITELISP)/geben
 DEST-IMG = $(DEST)/tree-widget/geben
