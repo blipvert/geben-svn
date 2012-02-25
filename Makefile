@@ -15,6 +15,7 @@ OBJS    = $(SRCS:%.el=%.elc)
 IMGDIR  = tree-widget/geben
 IMGS    = $(wildcard $(IMGDIR)/*.png)
 
+ifndef DEST
 ifndef SITELISP
 SITELISP := $(shell $(EMACS) -Q --batch --eval '	       \
   (let (tbl)						       \
@@ -35,6 +36,8 @@ endif
 endif
 
 DEST = $(SITELISP)/geben
+endif
+
 DEST-IMG = $(DEST)/tree-widget/geben
 
 .PHONY: all
